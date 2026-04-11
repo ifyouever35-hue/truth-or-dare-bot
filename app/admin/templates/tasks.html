@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>ToD Admin — Задания</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0f0f13; --card: #1a1a24; --border: #2e2e42; --accent: #7c5cfc;
+          --text: #e8e8f0; --muted: #7a7a9a; --red: #ff4b6e; --green: #3ecf8e; --orange: #ff9a3c; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+  .sidebar { position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+    background: var(--card); border-right: 1px solid var(--border); padding: 24px 16px; }
+  .sidebar .logo { font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 32px; }
+  .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 4px; }
+  .sidebar nav a:hover, .sidebar nav a.active { background: #2a2a3d; color: var(--text); }
+  .main { margin-left: 220px; padding: 32px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+  h1 { font-size: 24px; font-weight: 700; }
+  .add-form { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+              padding: 20px; margin-bottom: 24px; }
+  .add-form h2 { font-size: 16px; margin-bottom: 16px; color: var(--muted); }
+  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 12px; color: var(--muted); }
+  .form-group textarea, .form-group select {
+    background: #2a2a3d; border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 8px; font-size: 14px; font-family: inherit;
+  }
+  .form-group textarea { width: 400px; height: 80px; resize: vertical; }
+  .btn { padding: 8px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; border-radius: 6px; }
+  .btn-toggle-on { background: #3ecf8e22; color: var(--green); border: 1px solid #3ecf8e44; }
+  .btn-toggle-off { background: #ff4b6e22; color: var(--red); border: 1px solid #ff4b6e44; }
+  .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .filters a { padding: 6px 16px; border-radius: 20px; font-size: 13px; text-decoration: none;
+               color: var(--muted); background: var(--card); border: 1px solid var(--border); }
+  .filters a.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border-radius: 12px; overflow: hidden; }
+  th { padding: 12px 16px; text-align: left; font-size: 12px; color: var(--muted);
+       text-transform: uppercase; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; }
+  .badge.truth { background: #7c5cfc22; color: var(--accent); }
+  .badge.dare { background: #ff9a3c22; color: var(--orange); }
+  .badge.adult { background: #ff4b6e22; color: var(--red); }
+  .badge.media { background: #3ecf8e22; color: var(--green); }
+  .text-cell { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">🎲 ToD Admin</div>
+  <nav>
+    <a href="/admin/">📊 Дашборд</a>
+    <a href="/admin/reports">🚩 Жалобы</a>
+    <a href="/admin/tasks" class="active">📋 Задания</a>
+    <a href="/admin/users">👥 Пользователи</a>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar"><h1>📋 Задания</h1></div>
+
+  <div class="add-form">
+    <h2>➕ Добавить задание</h2>
+    <form method="post" action="/admin/tasks">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Текст задания</label>
+          <textarea name="text" required placeholder="Расскажи о своём самом неловком моменте..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Тип</label>
+          <select name="task_type">
+            <option value="truth">🗣 Правда</option>
+            <option value="dare">⚡ Действие</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>18+</label>
+          <select name="is_18_plus">
+            <option value="">Нет</option>
+            <option value="on">Да 🔞</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Медиа</label>
+          <select name="media_required">
+            <option value="none">Не нужно</option>
+            <option value="photo">📷 Фото</option>
+            <option value="video_note">🎥 Видео</option>
+          </select>
+        </div>
+        <div class="form-group" style="justify-content:flex-end">
+          <button type="submit" class="btn btn-accent">Добавить</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="filters">
+    <a href="/admin/tasks" class="{{ 'active' if filter_type == 'all' else '' }}">Все</a>
+    <a href="/admin/tasks?task_type=truth" class="{{ 'active' if filter_type == 'truth' else '' }}">🗣 Правда</a>
+    <a href="/admin/tasks?task_type=dare" class="{{ 'active' if filter_type == 'dare' else '' }}">⚡ Действие</a>
+    <a href="/admin/tasks?is_18_plus=false" class="{{ 'active' if filter_18 == 'false' else '' }}">0+</a>
+    <a href="/admin/tasks?is_18_plus=true" class="{{ 'active' if filter_18 == 'true' else '' }}">🔞 18+</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Текст</th>
+        <th>Тип</th>
+        <th>Теги</th>
+        <th>Использований</th>
+        <th>Статус</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for task in tasks %}
+    <tr style="{{ 'opacity:.5' if not task.is_active else '' }}">
+      <td class="text-cell" title="{{ task.text }}">{{ task.text }}</td>
+      <td>
+        <span class="badge {{ 'truth' if task.type.value == 'truth' else 'dare' }}">
+          {{ '🗣 Правда' if task.type.value == 'truth' else '⚡ Действие' }}
+        </span>
+      </td>
+      <td>
+        {% if task.is_18_plus %}<span class="badge adult">18+</span>{% endif %}
+        {% if task.media_required.value != 'none' %}
+          <span class="badge media">📎 {{ task.media_required.value }}</span>
+        {% endif %}
+      </td>
+      <td style="color:var(--muted);">{{ task.times_used }}</td>
+      <td>
+        <span style="color: {{ 'var(--green)' if task.is_active else 'var(--red)' }};">
+          {{ '✅ Активно' if task.is_active else '⏸ Скрыто' }}
+        </span>
+      </td>
+      <td>
+        <form method="post" action="/admin/tasks/{{ task.id }}/toggle">
+          <button class="btn btn-sm {{ 'btn-toggle-off' if task.is_active else 'btn-toggle-on' }}">
+            {{ 'Скрыть' if task.is_active else 'Включить' }}
+          </button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

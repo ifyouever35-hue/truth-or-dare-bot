@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>🎲 ToD Admin</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #0d0d14; --card: #16162a; --border: #252545;
+  --accent: #7c5cfc; --accent2: #e84393; --text: #e8e8f0;
+  --muted: #6b6b9a; --green: #3ecf8e; --red: #ff4b6e;
+  --orange: #ff9a3c; --blue: #38bdf8;
+}
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 240px; min-height: 100vh; background: var(--card);
+  border-right: 1px solid var(--border); padding: 0; flex-shrink: 0;
+  position: fixed; top: 0; left: 0; bottom: 0;
+}
+.sidebar-header {
+  padding: 24px 20px 20px; border-bottom: 1px solid var(--border);
+  background: linear-gradient(135deg, #7c5cfc22, #e8439322);
+}
+.sidebar-logo { font-size: 22px; font-weight: 800; color: var(--accent); letter-spacing: -0.5px; }
+.sidebar-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.nav { padding: 12px 12px; }
+.nav a {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-radius: 10px; color: var(--muted); text-decoration: none;
+  font-size: 14px; font-weight: 500; margin-bottom: 4px; transition: all .15s;
+}
+.nav a:hover { background: #252545; color: var(--text); }
+.nav a.active { background: linear-gradient(135deg, #7c5cfc33, #7c5cfc11); color: var(--accent); }
+.nav-badge {
+  margin-left: auto; background: var(--red); color: #fff;
+  border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700;
+}
+.main { margin-left: 240px; padding: 32px; flex: 1; }
+.topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+.topbar-left h1 { font-size: 26px; font-weight: 800; }
+.topbar-left .sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.alert-pill {
+  display: flex; align-items: center; gap: 6px;
+  background: #ff4b6e18; color: var(--red);
+  border: 1px solid #ff4b6e40; border-radius: 20px;
+  padding: 8px 16px; font-size: 13px; font-weight: 600; text-decoration: none;
+}
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px; position: relative; overflow: hidden;
+}
+.stat-card::after {
+  content: ''; position: absolute; top: 0; right: 0;
+  width: 60px; height: 60px; border-radius: 0 14px 0 60px;
+  background: currentColor; opacity: .05;
+}
+.stat-card .icon { font-size: 24px; margin-bottom: 12px; display: block; }
+.stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; font-weight: 600; }
+.stat-card .value { font-size: 34px; font-weight: 800; margin-top: 4px; line-height: 1; }
+.stat-card .delta { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.c-accent { color: var(--accent); }
+.c-green { color: var(--green); }
+.c-orange { color: var(--orange); }
+.c-red { color: var(--red); }
+.c-blue { color: var(--blue); }
+.section-header { font-size: 16px; font-weight: 700; margin-bottom: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.revenue-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.rev-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px;
+  background: linear-gradient(135deg, var(--card), #1a1a30);
+}
+.rev-card .rev-label { font-size: 12px; color: var(--muted); margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.rev-card .rev-value { font-size: 36px; font-weight: 800; color: var(--green); }
+.rev-card .rev-sub { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.chart-placeholder {
+  background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 24px;
+  min-height: 80px; display: flex; align-items: center; justify-content: center;
+  color: var(--muted); font-size: 13px; margin-bottom: 24px;
+}
+.time-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #3ecf8e18; color: var(--green);
+  border: 1px solid #3ecf8e30; border-radius: 20px;
+  padding: 6px 12px; font-size: 12px; font-weight: 600;
+}
+.time-badge::before { content: '●'; animation: blink 1.5s infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-logo">🎲 ToD Admin</div>
+    <div class="sidebar-sub">Правда или Действие</div>
+  </div>
+  <nav class="nav">
+    <a href="/admin/" class="active">📊 Дашборд</a>
+    <a href="/admin/reports">
+      🚩 Жалобы
+      {% if pending_reports > 0 %}<span class="nav-badge">{{ pending_reports }}</span>{% endif %}
+    </a>
+    <a href="/admin/tasks">📋 Задания</a>
+    <a href="/admin/users">👥 Пользователи</a>
+  </nav>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <h1>Дашборд</h1>
+      <div class="sub">{{ now }} UTC</div>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;">
+      <span class="time-badge">Онлайн</span>
+      {% if pending_reports > 0 %}
+      <a href="/admin/reports" class="alert-pill">🚩 {{ pending_reports }} жалоб</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- KPI -->
+  <div class="grid-4">
+    <div class="stat-card c-accent">
+      <span class="icon">👥</span>
+      <div class="label">DAU</div>
+      <div class="value c-accent">{{ dau }}</div>
+      <div class="delta">Активных сегодня</div>
+    </div>
+    <div class="stat-card c-blue">
+      <span class="icon">📅</span>
+      <div class="label">MAU</div>
+      <div class="value c-blue">{{ mau }}</div>
+      <div class="delta">За текущий месяц</div>
+    </div>
+    <div class="stat-card c-green">
+      <span class="icon">🌍</span>
+      <div class="label">Всего юзеров</div>
+      <div class="value c-green">{{ total_users }}</div>
+      <div class="delta">С начала работы</div>
+    </div>
+    <div class="stat-card c-orange">
+      <span class="icon">🎮</span>
+      <div class="label">Комнат сегодня</div>
+      <div class="value c-orange">{{ lobbies_today }}</div>
+      <div class="delta">Активных: {{ active_lobbies }}</div>
+    </div>
+  </div>
+
+  <div class="grid-3">
+    <div class="stat-card c-accent">
+      <span class="icon">💎</span>
+      <div class="label">Verified 18+</div>
+      <div class="value c-accent">{{ verified_count }}</div>
+      <div class="delta">Конверсия: {{ conversion }}%</div>
+    </div>
+    <div class="stat-card c-green">
+      <span class="icon">🎮</span>
+      <div class="label">Игр сыграно</div>
+      <div class="value c-green">{{ total_games }}</div>
+      <div class="delta">Всего сессий</div>
+    </div>
+    <div class="stat-card c-red">
+      <span class="icon">🚩</span>
+      <div class="label">Жалоб</div>
+      <div class="value c-red">{{ pending_reports }}</div>
+      <div class="delta">Ожидают проверки</div>
+    </div>
+  </div>
+
+  <!-- Монетизация -->
+  <div class="section-header">💰 Доход за текущий месяц</div>
+  <div class="revenue-row">
+    <div class="rev-card">
+      <div class="rev-label">⭐ Telegram Stars (XTR)</div>
+      <div class="rev-value">{{ revenue.get('XTR', 0)|int }} ⭐</div>
+      <div class="rev-sub">≈ ${{ "%.2f"|format(revenue.get('XTR', 0) * 0.013) }} USD</div>
+    </div>
+    <div class="rev-card">
+      <div class="rev-label">💳 WayForPay (UAH)</div>
+      <div class="rev-value">{{ "%.0f"|format(revenue.get('UAH', 0)) }} ₴</div>
+      <div class="rev-sub">≈ ${{ "%.2f"|format(revenue.get('UAH', 0) / 42) }} USD</div>
+    </div>
+  </div>
+
+  <!-- Быстрые ссылки -->
+  <div class="section-header">🔗 Управление</div>
+  <div class="grid-3">
+    <a href="/admin/reports" style="text-decoration:none;">
+      <div class="stat-card" style="cursor:pointer;transition:border-color .2s;" onmouseover="this.style.borderColor='#7c5cfc'" onmouseout="this.style.borderColor='#252545'">
+        <span class="icon">🚩</span>
+        <div class="label">Жалобы</div>
+        <div class="value" style="font-size:20px;color:var(--muted)">Проверить →</div>
+      </div>
+    </a>
+    <a href="/admin/tasks" style="text-decoration:none;">
+      <div class="stat-card" style="cursor:pointer;" onmouseover="this.style.borderColor='#7c5cfc'" onmouseout="this.style.borderColor='#252545'">
+        <span class="icon">📋</span>
+        <div class="label">Задания</div>
+        <div class="value" style="font-size:20px;color:var(--muted)">Управлять →</div>
+      </div>
+    </a>
+    <a href="/admin/users" style="text-decoration:none;">
+      <div class="stat-card" style="cursor:pointer;" onmouseover="this.style.borderColor='#7c5cfc'" onmouseout="this.style.borderColor='#252545'">
+        <span class="icon">👥</span>
+        <div class="label">Пользователи</div>
+        <div class="value" style="font-size:20px;color:var(--muted)">Найти →</div>
+      </div>
+    </a>
+  </div>
+</main>
+</div>
+</body>
+</html>

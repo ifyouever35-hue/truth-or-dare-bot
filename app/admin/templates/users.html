@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>ToD Admin — Пользователи</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg: #0f0f13; --card: #1a1a24; --border: #2e2e42; --accent: #7c5cfc;
+          --text: #e8e8f0; --muted: #7a7a9a; --red: #ff4b6e; --green: #3ecf8e; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+  .sidebar { position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+    background: var(--card); border-right: 1px solid var(--border); padding: 24px 16px; }
+  .sidebar .logo { font-size: 20px; font-weight: 700; color: var(--accent); margin-bottom: 32px; }
+  .sidebar nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    border-radius: 8px; color: var(--muted); text-decoration: none; font-size: 14px; margin-bottom: 4px; }
+  .sidebar nav a:hover, .sidebar nav a.active { background: #2a2a3d; color: var(--text); }
+  .main { margin-left: 220px; padding: 32px; }
+  h1 { font-size: 24px; font-weight: 700; margin-bottom: 24px; }
+  .search-form { display: flex; gap: 12px; margin-bottom: 20px; }
+  .search-form input {
+    background: var(--card); border: 1px solid var(--border); color: var(--text);
+    padding: 10px 16px; border-radius: 8px; font-size: 14px; width: 320px;
+  }
+  .btn { padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; }
+  .btn-accent { background: var(--accent); color: #fff; }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border-radius: 12px; overflow: hidden; }
+  th { padding: 12px 16px; text-align: left; font-size: 12px; color: var(--muted);
+       text-transform: uppercase; border-bottom: 1px solid var(--border); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 11px; }
+  .badge.verified { background: #7c5cfc22; color: var(--accent); }
+  .badge.banned { background: #ff4b6e22; color: var(--red); }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="logo">🎲 ToD Admin</div>
+  <nav>
+    <a href="/admin/">📊 Дашборд</a>
+    <a href="/admin/reports">🚩 Жалобы</a>
+    <a href="/admin/tasks">📋 Задания</a>
+    <a href="/admin/users" class="active">👥 Пользователи</a>
+  </nav>
+</div>
+
+<div class="main">
+  <h1>👥 Пользователи</h1>
+  <form method="get" action="/admin/users" class="search-form">
+    <input type="text" name="search" value="{{ search }}" placeholder="Поиск по имени или @username...">
+    <button type="submit" class="btn btn-accent">Найти</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Пользователь</th>
+        <th>tg_id</th>
+        <th>Статус</th>
+        <th>Игр</th>
+        <th>Stars</th>
+        <th>Регистрация</th>
+        <th>Действие</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for user in users %}
+    <tr>
+      <td>
+        <div>{{ user.first_name }}</div>
+        <div style="color:var(--muted);font-size:12px;">@{{ user.username or '—' }}</div>
+      </td>
+      <td style="font-family:monospace;color:var(--muted);">{{ user.tg_id }}</td>
+      <td>
+        {% if user.is_banned %}
+          <span class="badge banned">🔨 Бан</span>
+        {% elif user.is_verified %}
+          <span class="badge verified">💎 Verified</span>
+        {% else %}
+          <span style="color:var(--muted);font-size:12px;">—</span>
+        {% endif %}
+      </td>
+      <td style="color:var(--muted);">{{ user.games_played }}</td>
+      <td style="color:var(--muted);">{{ user.stars_balance }} ⭐</td>
+      <td style="color:var(--muted);font-size:12px;">{{ user.created_at.strftime('%d.%m.%Y') }}</td>
+      <td>
+        {% if not user.is_banned %}
+        <form method="post" action="/admin/ban" style="display:flex;gap:6px;">
+          <input type="hidden" name="tg_id" value="{{ user.tg_id }}">
+          <input type="hidden" name="ban_type" value="permanent">
+          <input type="text" name="reason" placeholder="Причина"
+            style="background:#2a2a3d;border:1px solid var(--border);color:var(--text);
+                   padding:4px 8px;border-radius:6px;font-size:12px;width:140px;">
+          <button type="submit"
+            style="background:var(--red);color:#fff;border:none;padding:4px 10px;
+                   border-radius:6px;cursor:pointer;font-size:12px;">Бан</button>
+        </form>
+        {% else %}
+          <span style="color:var(--red);font-size:12px;">Забанен</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

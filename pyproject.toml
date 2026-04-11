@@ -1,0 +1,6 @@
+[tool.pytest.ini_options]
+# asyncio_mode = "auto" — все async def test_* запускаются как корутины автоматически
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Показываем подробный вывод
+addopts = "-v --tb=short"

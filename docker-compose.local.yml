@@ -1,0 +1,43 @@
+version: "3.9"
+
+# Только PostgreSQL и Redis.
+# Бот запускается отдельно командой: python run_local.py
+# Это позволяет быстро перезапускать бота при изменениях кода.
+
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: tod_local_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: truth_or_dare
+      POSTGRES_USER: tod_user
+      POSTGRES_PASSWORD: localpassword123
+    ports:
+      - "5432:5432"     # доступен с localhost
+    volumes:
+      - tod_local_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tod_user -d truth_or_dare"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: tod_local_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"     # доступен с localhost
+    volumes:
+      - tod_local_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tod_local_postgres:
+  tod_local_redis:

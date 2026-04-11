@@ -1,0 +1,116 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: tod_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-truth_or_dare}
+      POSTGRES_USER: ${POSTGRES_USER:-tod_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tod_user} -d ${POSTGRES_DB:-truth_or_dare}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tod_net
+
+  # ── Redis ───────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: tod_redis
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tod_net
+
+  # ── Bot + Admin API ─────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tod_app
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - media_storage:/app/media_storage
+      - ./logs:/app/logs
+    depends_on:
+      # entrypoint.sh сам ждёт PostgreSQL и запускает миграции.
+      # depends_on нужен только чтобы db/redis успели стартовать как процессы.
+      - db
+      - redis
+    ports:
+      - "8000:8000"     # nginx проксирует снаружи, порт не открываем публично
+    networks:
+      - tod_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # start_period: даём время entrypoint.sh на ожидание БД + миграции
+      start_period: 60s
+
+  # ── Prometheus ──────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tod_prometheus
+    restart: always
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+    networks:
+      - tod_net
+    ports:
+      - "9090:9090"
+
+  # ── Grafana ─────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:latest
+    container_name: tod_grafana
+    restart: always
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-grafana_admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      # Автоматически подключает Prometheus как источник данных
+      - ./deploy/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      # Автоматически загружает наш дашборд при первом запуске
+      - ./deploy/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    networks:
+      - tod_net
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+
+networks:
+  tod_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_storage:
+  prometheus_data:
+  grafana_data:
