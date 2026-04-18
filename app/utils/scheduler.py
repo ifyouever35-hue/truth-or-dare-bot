@@ -22,7 +22,6 @@ from sqlalchemy import select, delete, update, func
 from app.database.models import Lobby, LobbyMember, LobbyStatus, MediaArchive, Payment, User
 from app.database.session import get_db_context
 from app.utils.media import cleanup_old_media
-
 logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -190,4 +189,21 @@ def setup_scheduler() -> AsyncIOScheduler:
         id="job_cleanup_db",
         replace_existing=True,
     )
+    # Бэкап БД — каждую ночь в 3:30 UTC
+    scheduler.add_job(
+        job_backup_db,
+        trigger=CronTrigger(hour=3, minute=30),
+        id="job_backup_db",
+        replace_existing=True,
+    )
     return scheduler
+
+
+async def job_backup_db():
+    """Ежедневный бэкап БД в папку backups/."""
+    from app.utils.backup import run_backup
+    success = await run_backup()
+    if not success:
+        logger.warning("Scheduler: бэкап не удался — проверьте pg_dump в PATH")
+    else:
+        logger.info("Scheduler: бэкап успешно создан")

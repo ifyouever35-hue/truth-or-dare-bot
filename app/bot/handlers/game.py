@@ -54,9 +54,17 @@ async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMemb
     if not members:
         return
 
+    import asyncio
+    from app.utils.broadcast import send_safe
+
     current_idx = lobby.current_player_index % len(members)
     current_member = members[current_idx]
-    current_name = current_member.user.first_name
+
+    await redis_client.set(
+        f"current_player:{str(lobby.id)}",
+        str(current_member.user.tg_id),
+        ttl=3600,
+    )
 
     score_lines = []
     for m in members:
@@ -65,36 +73,31 @@ async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMemb
     scoreboard = "\n".join(score_lines)
 
     # Активному игроку
-    try:
-        await bot.send_message(
-            chat_id=current_member.user.tg_id,
+    await send_safe(bot,
+        chat_id=current_member.user.tg_id,
+        text=(
+            f"🎯 <b>Ваш ход!</b>  (Раунд {lobby.current_round})\n\n"
+            f"<b>Счёт:</b>\n{scoreboard}\n\n"
+            f"Выберите тип задания:"
+        ),
+        reply_markup=task_choice_kb(str(lobby.id)),
+        parse_mode="HTML",
+    )
+
+    # Наблюдателям — с задержкой (Telegram flood limit: 30 msg/sec)
+    spectators = [m for m in members if m.user_id != current_member.user_id]
+    for i, member in enumerate(spectators):
+        if i > 0:
+            await asyncio.sleep(0.035)
+        await send_safe(bot,
+            chat_id=member.user.tg_id,
             text=(
-                f"🎯 <b>Ваш ход!</b>  (Раунд {lobby.current_round})\n\n"
+                f"⏳ Ход следующего игрока  (Раунд {lobby.current_round})\n\n"
                 f"<b>Счёт:</b>\n{scoreboard}\n\n"
-                f"Выберите тип задания:"
+                f"Ожидайте выбора..."
             ),
-            reply_markup=task_choice_kb(str(lobby.id)),
             parse_mode="HTML",
         )
-    except Exception:
-        pass
-
-    # Наблюдателям
-    for member in members:
-        if member.user_id == current_member.user_id:
-            continue
-        try:
-            await bot.send_message(
-                chat_id=member.user.tg_id,
-                text=(
-                    f"⏳ Ход <b>{current_name}</b>  (Раунд {lobby.current_round})\n\n"
-                    f"<b>Счёт:</b>\n{scoreboard}\n\n"
-                    f"Ожидайте выбора..."
-                ),
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
 
 
 # ─── Система готовности ───────────────────────────────────────────────────────
@@ -102,6 +105,9 @@ async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMemb
 @router.callback_query(F.data.startswith("game:ready:"))
 async def cb_player_ready(call: CallbackQuery, user: User, db: AsyncSession) -> None:
     lobby_id = call.data.split(":")[2]
+    if not await redis_client.acquire_action(user.tg_id, "ready", ttl=5):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby = await get_lobby_by_id(db, lobby_id)
     if not lobby:
         await call.answer("❌ Комната не найдена.", show_alert=True)
@@ -135,15 +141,26 @@ async def cb_player_ready(call: CallbackQuery, user: User, db: AsyncSession) -> 
 
     # Все готовы — стартуем!
     if ready_count >= total:
-        await redis_client.ready_clear(lobby_id)
-        from app.services.lobby_service import start_game
-        success, err = await start_game(db, lobby, members[0].user)  # уже проверено
-        # Форсируем старт
+        # Защита от двойного старта
         from app.database.models import LobbyStatus
+        if lobby.status == LobbyStatus.ACTIVE:
+            return
+
+        await redis_client.ready_clear(lobby_id)
+
+        # Стартуем игру напрямую (без проверки хоста — quickmatch)
         lobby.status = LobbyStatus.ACTIVE
         lobby.current_round = 1
         lobby.current_player_index = 0
         await db.flush()
+
+        # Сохраняем текущего игрока в Redis для быстрой проверки
+        current_player = members[0]
+        await redis_client.set(
+            f"current_player:{lobby_id}",
+            str(current_player.user.tg_id),
+            ttl=3600,
+        )
 
         await send_turn_notification(call.bot, lobby, members)
 
@@ -164,8 +181,20 @@ async def cb_pick_task_type(
         return
 
     members = await get_lobby_members(db, lobby.id)
-    current_idx = lobby.current_player_index % len(members) if members else 0
-    if not members or str(members[current_idx].user_id) != str(user.id):
+    if not members:
+        await call.answer("❌ Нет игроков.", show_alert=True)
+        return
+
+    # Проверяем по двум критериям: Redis tg_id (быстро) + БД индекс (надёжно)
+    current_idx = lobby.current_player_index % len(members)
+    current_member = members[current_idx]
+    is_current_by_db = str(current_member.user_id) == str(user.id)
+
+    # Дополнительная проверка через Redis (на случай расхождения)
+    cached_tg = await redis_client.get(f"current_player:{lobby_id}")
+    is_current_by_redis = cached_tg and int(cached_tg) == user.tg_id
+
+    if not is_current_by_db and not is_current_by_redis:
         await call.answer("❌ Сейчас не ваш ход!", show_alert=True)
         return
 
@@ -281,6 +310,10 @@ async def msg_truth_answer(message: Message, user: User, db: AsyncSession, state
 async def cb_truth_done(call: CallbackQuery, user: User, db: AsyncSession, state: FSMContext) -> None:
     """Игрок завершил ответ — запускаем голосование."""
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "truth_done", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby, member = await _get_lobby_and_member(db, lobby_id, user)
     if not lobby or not member:
         await call.answer("❌ Ошибка.", show_alert=True)
@@ -333,6 +366,10 @@ async def cb_truth_done(call: CallbackQuery, user: User, db: AsyncSession, state
 async def cb_task_done(call: CallbackQuery, user: User, db: AsyncSession, state: FSMContext) -> None:
     """Игрок нажал 'Выполнил' (без медиа) — запускаем голосование."""
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "task_done", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby, member = await _get_lobby_and_member(db, lobby_id, user)
     if not lobby or not member:
         await call.answer("❌ Ошибка.", show_alert=True)
@@ -585,6 +622,10 @@ async def cb_vote(call: CallbackQuery, user: User, db: AsyncSession) -> None:
 async def cb_redo(call: CallbackQuery, user: User, db: AsyncSession, state: FSMContext) -> None:
     """Игрок решил переделать задание."""
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "redo", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby, member = await _get_lobby_and_member(db, lobby_id, user)
     if not lobby or not member:
         await call.answer("❌ Ошибка.", show_alert=True)
@@ -621,6 +662,10 @@ async def cb_redo(call: CallbackQuery, user: User, db: AsyncSession, state: FSMC
 @router.callback_query(F.data.startswith("game:surrender:"))
 async def cb_surrender(call: CallbackQuery, user: User, db: AsyncSession, state: FSMContext) -> None:
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "surrender", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby, member = await _get_lobby_and_member(db, lobby_id, user)
     if not lobby or not member:
         await call.answer("❌ Ошибка.", show_alert=True)
@@ -673,6 +718,10 @@ async def cb_buyout_prompt(call: CallbackQuery, user: User) -> None:
 @router.callback_query(F.data.startswith("game:buyout_confirm:"))
 async def cb_buyout_confirm(call: CallbackQuery, user: User, db: AsyncSession, state: FSMContext) -> None:
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "buyout", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby, member = await _get_lobby_and_member(db, lobby_id, user)
     if not lobby or not member:
         await call.answer("❌ Ошибка.", show_alert=True)
@@ -816,6 +865,10 @@ async def cb_leave_game(
 ) -> None:
     """Игрок выходит из активной игры. Если осталось >= 2 — игра продолжается."""
     lobby_id = call.data.split(":")[2]
+    # Защита от двойного нажатия
+    if not await redis_client.acquire_action(user.tg_id, "leave_game", ttl=3):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby = await get_lobby_by_id(db, lobby_id)
     if not lobby:
         await call.answer("❌ Комната не найдена.", show_alert=True)

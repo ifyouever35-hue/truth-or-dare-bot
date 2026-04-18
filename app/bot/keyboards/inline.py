@@ -129,11 +129,6 @@ def verified_buy_kb(is_renewal: bool = False) -> InlineKeyboardMarkup:
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text=label, callback_data="payment:verified:stars"))
-    if settings.wayforpay_merchant_account:
-        builder.row(InlineKeyboardButton(
-            text=f"💳 Картою {settings.verified_price_uah} ₴",
-            callback_data="payment:method:wayforpay",
-        ))
     builder.row(InlineKeyboardButton(text="« Назад", callback_data="menu:main"))
     return builder.as_markup()
 

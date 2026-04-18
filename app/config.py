@@ -59,9 +59,6 @@ class Settings(BaseSettings):
 
     # ── Payments ──────────────────────────────────────────
     stars_provider_token: str = ""
-    wayforpay_merchant_account: str = ""
-    wayforpay_secret_key: str = ""
-    wayforpay_merchant_domain: str = ""
 
     # ── Game settings ─────────────────────────────────────
     task_timer_seconds: int = 120

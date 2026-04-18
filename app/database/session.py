@@ -1,8 +1,5 @@
 """
-app/database/session.py — Фабрика сессий SQLAlchemy (async).
-
-Паттерн: один engine на весь процесс, сессия создаётся per-request
-через async context manager или DI в FastAPI.
+app/database/session.py — Connection pool оптимизированный для высокой нагрузки.
 """
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -16,30 +13,36 @@ from sqlalchemy.ext.asyncio import (
 
 from app.config import settings
 
-# ─── Engine ───────────────────────────────────────────────────────────────────
-# pool_size + max_overflow: при 10 воркерах и 20 соединений у каждого
-# суммарно не превышаем стандартный лимит PostgreSQL (100).
+# ─── Engine — настроен для 500+ параллельных пользователей ───────────────────
 engine: AsyncEngine = create_async_engine(
     settings.database_url,
-    pool_size=10,
-    max_overflow=20,
-    pool_pre_ping=True,      # проверяем соединение перед использованием
-    pool_recycle=1800,        # сбрасываем соединения старше 30 минут
-    echo=False,               # True — логировать SQL в dev
+
+    # Pool: 20 постоянных + 40 временных = 60 max соединений
+    # PostgreSQL default limit = 100, оставляем запас для admin/alembic
+    pool_size=20,
+    max_overflow=40,
+
+    pool_pre_ping=True,       # проверяем соединение перед использованием
+    pool_recycle=1800,         # пересоздаём соединения старше 30 мин
+    pool_timeout=10,           # ждём свободное соединение max 10 сек
+    pool_reset_on_return="rollback",  # откатываем незакоммиченное при возврате
+
+    # Производительность
+    echo=False,
+    future=True,
 )
 
-# ─── Session factory ──────────────────────────────────────────────────────────
 AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
     bind=engine,
     class_=AsyncSession,
-    expire_on_commit=False,  # объекты доступны после commit() без re-fetch
+    expire_on_commit=False,
     autoflush=False,
+    autocommit=False,
 )
 
 
-# ─── Dependency ───────────────────────────────────────────────────────────────
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency — inject сессию в роут."""
+    """FastAPI dependency."""
     async with AsyncSessionLocal() as session:
         try:
             yield session
@@ -51,7 +54,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 @asynccontextmanager
 async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
-    """Context manager для использования вне FastAPI (handlers, services)."""
+    """Context manager для использования вне FastAPI."""
     async with AsyncSessionLocal() as session:
         try:
             yield session

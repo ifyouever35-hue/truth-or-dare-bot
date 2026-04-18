@@ -448,6 +448,9 @@ async def cb_start_game(
     db: AsyncSession,
 ) -> None:
     lobby_id = call.data.split(":")[2]
+    if not await redis_client.acquire_action(user.tg_id, "start_game", ttl=5):
+        await call.answer("⏳ Обрабатывается...", show_alert=False)
+        return
     lobby = await get_lobby_by_id(db, lobby_id)
 
     if not lobby:

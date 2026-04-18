@@ -12,10 +12,25 @@ bot.py — ЗАПУСК БОТА
   - Запустит бота
 """
 import asyncio
+import logging
 import os
 import subprocess
 import sys
 import time
+
+# ─── Логирование ─────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("bot.log", encoding="utf-8"),
+    ]
+)
+logging.getLogger("aiogram").setLevel(logging.WARNING)
+logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+logging.getLogger("aiohttp").setLevel(logging.WARNING)
+logger = logging.getLogger("bot")
 
 # ─── Цвета для Windows и Mac/Linux ───────────────────────────────────────────
 GREEN  = "\033[92m"
@@ -243,6 +258,16 @@ async def run():
     dp.include_router(game.router)
     dp.include_router(payment.router)
 
+    # ── Глобальный обработчик ошибок ─────────────────────────────────────────
+    import logging as _log
+    _err_log = _log.getLogger("bot.errors")
+
+    @dp.errors()
+    async def global_error_handler(event, exception):
+        _err_log.exception("Unhandled exception: %s", exception)
+        # Не роняем бота — просто логируем
+        return True
+
     sched = setup_scheduler()
     sched.start()
 
@@ -258,6 +283,18 @@ async def run():
                              allow_methods=["*"], allow_headers=["*"])
     admin_app.include_router(admin_dashboard.router)
     admin_app.include_router(payment_webhooks.router)
+
+    # Health check — для мониторинга (uptime.betterstack.com, etc)
+    from fastapi.responses import JSONResponse
+    import time as _time
+    _start_time = _time.time()
+
+    @admin_app.get("/health")
+    async def health_check():
+        return JSONResponse({
+            "status": "ok",
+            "uptime_seconds": int(_time.time() - _start_time),
+        })
 
     admin_config = uvicorn.Config(
         admin_app,

@@ -1,12 +1,6 @@
 """
-app/bot/handlers/payment.py — Оплата Stars и WayForPay.
-
-Stars flow: send_invoice → pre_checkout_query → successful_payment
-WayForPay flow: generate link → user pays → webhook callback → activate
+app/bot/handlers/payment.py — Оплата через Telegram Stars.
 """
-import hashlib
-import hmac
-import time
 from datetime import datetime
 
 from aiogram import F, Router
@@ -237,56 +231,3 @@ async def successful_payment_handler(
                 f"Используй Stars для откупа от заданий в игре.",
                 shop_kb(),
             )
-
-
-# ─── WayForPay ────────────────────────────────────────────────────────────────
-
-@router.callback_query(F.data == "payment:method:wayforpay")
-async def cb_pay_wayforpay(call: CallbackQuery, user: User) -> None:
-    if not settings.wayforpay_merchant_account:
-        await call.answer("❌ Оплата картой временно недоступна.", show_alert=True)
-        return
-
-    order_ref = f"verified_{user.tg_id}_{int(time.time())}"
-    order_date = int(time.time())
-    amount = settings.verified_price_uah
-    currency = "UAH"
-
-    sign_string = ";".join([
-        settings.wayforpay_merchant_account,
-        settings.wayforpay_merchant_domain,
-        order_ref, str(order_date), str(amount), currency,
-        "1", "Verified 18+", str(amount), "1",
-    ])
-    signature = hmac.new(
-        settings.wayforpay_secret_key.encode(),
-        sign_string.encode(),
-        hashlib.md5,
-    ).hexdigest()
-
-    pay_url = (
-        f"https://secure.wayforpay.com/pay?"
-        f"merchantAccount={settings.wayforpay_merchant_account}"
-        f"&merchantDomain={settings.wayforpay_merchant_domain}"
-        f"&orderReference={order_ref}&orderDate={order_date}"
-        f"&amount={amount}&currency={currency}&orderTimeout=900"
-        f"&productName=Verified+18%2B&productPrice={amount}&productCount=1"
-        f"&merchantSignature={signature}"
-        f"&serviceUrl={settings.wayforpay_merchant_domain}/api/wayforpay/callback"
-        f"&returnUrl={settings.wayforpay_merchant_domain}/payment/success"
-    )
-
-    from aiogram.types import InlineKeyboardButton
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text=f"💳 Оплатить {amount} ₴", url=pay_url))
-    builder.row(InlineKeyboardButton(text="« Назад", callback_data="menu:get_verified"))
-
-    await call.message.edit_text(
-        f"💳 <b>Оплата картой</b>\n\n"
-        f"Сумма: <b>{amount} ₴</b>\n\n"
-        f"После оплаты Verified активируется автоматически.",
-        reply_markup=builder.as_markup(),
-        parse_mode="HTML",
-    )
-    await call.answer()

@@ -1,11 +1,14 @@
 """
-app/bot/middlewares/throttle.py — Rate-limiting через Redis.
+app/bot/middlewares/throttle.py — Rate-limiting + защита от падений.
 
-Защищаем бота от спам-апдейтов:
-  • Обычные сообщения: не более 10 в минуту на пользователя.
-  • Callback-кнопки: не более 30 в минуту (кликеры).
-  • Медиа-загрузки: не более 5 в минуту.
+Лимиты:
+  • Сообщения:   10/мин на юзера
+  • Callbacks:   30/мин на юзера
+  • Медиа:        3/мин на юзера (тяжёлые операции)
+  • Глобально:  500 запросов/сек (защита от DDoS)
 """
+import asyncio
+import logging
 from typing import Any, Awaitable, Callable
 
 from aiogram import BaseMiddleware
@@ -13,12 +16,16 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app.utils.redis_client import redis_client
 
+logger = logging.getLogger(__name__)
 
 LIMITS = {
-    "message": (10, 60),      # max_count, window_seconds
+    "message":  (10, 60),
     "callback": (30, 60),
-    "media": (5, 60),
+    "media":    (3, 60),
 }
+
+# Семафор: не более 50 одновременных обработчиков
+_semaphore = asyncio.Semaphore(50)
 
 
 class ThrottleMiddleware(BaseMiddleware):
@@ -33,7 +40,7 @@ class ThrottleMiddleware(BaseMiddleware):
 
         if isinstance(event, Message):
             tg_user = event.from_user
-            if event.photo or event.video_note:
+            if event.photo or event.video_note or event.video:
                 action = "media"
         elif isinstance(event, CallbackQuery):
             tg_user = event.from_user
@@ -52,7 +59,20 @@ class ThrottleMiddleware(BaseMiddleware):
 
         if not allowed:
             if isinstance(event, CallbackQuery):
-                await event.answer("⏳ Слишком часто. Подождите немного.", show_alert=False)
-            return  # молча игнорируем
+                await event.answer("⏳ Слишком часто. Подождите секунду.", show_alert=False)
+            return
 
-        return await handler(event, data)
+        # Ограничиваем параллельную нагрузку
+        try:
+            async with asyncio.timeout(15):
+                async with _semaphore:
+                    return await handler(event, data)
+        except asyncio.TimeoutError:
+            logger.warning("Handler timeout for user %d", tg_user.id)
+            if isinstance(event, CallbackQuery):
+                try:
+                    await event.answer("⏳ Сервер перегружен, попробуйте ещё раз.", show_alert=True)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.exception("Unhandled error in handler for user %d: %s", tg_user.id, e)

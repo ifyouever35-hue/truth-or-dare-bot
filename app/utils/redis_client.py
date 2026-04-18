@@ -197,6 +197,21 @@ class RedisClient:
     async def del_last_message(self, tg_id: int) -> None:
         await self.client.delete(f"last_msg:{tg_id}")
 
+    # ── Защита от дублей (идемпотентность) ──────────────────────────────────
+
+    async def acquire_action(self, tg_id: int, action: str, ttl: int = 3) -> bool:
+        """
+        Защита от двойного нажатия кнопки.
+        Возвращает True если можно выполнять (первый клик).
+        Возвращает False если это дубль (уже обрабатывается).
+
+        TTL=3 сек: за это время любое действие с БД точно завершится.
+        SET NX — атомарная операция, безопасна при race condition.
+        """
+        key = f"action_lock:{tg_id}:{action}"
+        result = await self.client.set(key, "1", nx=True, ex=ttl)
+        return result is not None
+
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         serialized = json.dumps(value) if not isinstance(value, str) else value
         if ttl:

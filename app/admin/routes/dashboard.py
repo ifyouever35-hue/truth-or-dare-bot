@@ -227,23 +227,49 @@ async def admin_tasks(
     _: str = Depends(verify_admin),
     task_type: str = "all",
     is_18_plus: str = "all",
+    active: str = "all",
+    search: str = "",
 ):
+    # Общее кол-во
+    total_result = await db.execute(select(func.count(TasksPool.id)))
+    total_count = total_result.scalar() or 0
+
+    # Строим запрос с фильтрами
     query = select(TasksPool).order_by(TasksPool.created_at.desc())
     if task_type != "all":
         query = query.where(TasksPool.type == TaskType(task_type))
     if is_18_plus == "true":
-        query = query.where(TasksPool.is_18_plus == True)  # noqa: E712
+        query = query.where(TasksPool.is_18_plus == True)   # noqa: E712
     elif is_18_plus == "false":
         query = query.where(TasksPool.is_18_plus == False)  # noqa: E712
+    if active == "true":
+        query = query.where(TasksPool.is_active == True)    # noqa: E712
+    elif active == "false":
+        query = query.where(TasksPool.is_active == False)   # noqa: E712
+    if search:
+        query = query.where(TasksPool.text.ilike(f"%{search}%"))
 
-    result = await db.execute(query.limit(200))
+    result = await db.execute(query.limit(500))
     tasks = result.scalars().all()
+
+    # Для badge с жалобами в сайдбаре
+    pr = await db.execute(
+        select(func.count(MediaArchive.id)).where(
+            MediaArchive.is_reported == True,   # noqa: E712
+            MediaArchive.is_deleted == False,   # noqa: E712
+        )
+    )
+    pending_reports = pr.scalar() or 0
 
     return templates.TemplateResponse("tasks.html", {
         "request": request,
         "tasks": tasks,
+        "total_count": total_count,
         "filter_type": task_type,
         "filter_18": is_18_plus,
+        "filter_active": active,
+        "search": search,
+        "pending_reports": pending_reports,
     })
 
 
@@ -251,7 +277,7 @@ async def admin_tasks(
 async def admin_add_task(
     text: str = Form(...),
     task_type: str = Form(...),
-    is_18_plus: bool = Form(False),
+    is_18_plus: str = Form("false"),
     media_required: str = Form("none"),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_admin),
@@ -259,8 +285,8 @@ async def admin_add_task(
     from app.database.models import MediaRequired
     task = TasksPool(
         type=TaskType(task_type),
-        is_18_plus=is_18_plus,
-        text=text,
+        is_18_plus=(is_18_plus == "true"),
+        text=text.strip(),
         media_required=MediaRequired(media_required),
     )
     db.add(task)
@@ -278,6 +304,37 @@ async def admin_toggle_task(
     if not task:
         raise HTTPException(status_code=404)
     task.is_active = not task.is_active
+    return RedirectResponse(url="/admin/tasks", status_code=303)
+
+
+@router.post("/tasks/{task_id}/edit")
+async def admin_edit_task(
+    task_id: str,
+    text: str = Form(...),
+    media_required: str = Form("none"),
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin),
+):
+    result = await db.execute(select(TasksPool).where(TasksPool.id == task_id))
+    task = result.scalar_one_or_none()
+    if not task:
+        raise HTTPException(status_code=404)
+    from app.database.models import MediaRequired
+    task.text = text.strip()
+    task.media_required = MediaRequired(media_required)
+    return RedirectResponse(url="/admin/tasks", status_code=303)
+
+
+@router.post("/tasks/{task_id}/delete")
+async def admin_delete_task(
+    task_id: str,
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin),
+):
+    result = await db.execute(select(TasksPool).where(TasksPool.id == task_id))
+    task = result.scalar_one_or_none()
+    if task:
+        await db.delete(task)
     return RedirectResponse(url="/admin/tasks", status_code=303)
 
 
