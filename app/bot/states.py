@@ -14,6 +14,7 @@ class LobbyJoin(StatesGroup):
 
 class GamePlay(StatesGroup):
     task_active     = State()   # ход активного игрока — выбирает правда/действие
+    entering_custom = State()   # игрок вводит своё задание
     answering_truth = State()   # игрок печатает/записывает ответ на правду
     uploading_dare  = State()   # игрок загружает подтверждение действия
     waiting_vote    = State()   # ждём голосов за выполнение

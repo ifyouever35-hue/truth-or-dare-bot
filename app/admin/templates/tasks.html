@@ -2,18 +2,14 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>📋 Задания — ToD Admin</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0d0d14;--card:#16162a;--border:#252545;
-  --accent:#7c5cfc;--text:#e8e8f0;--muted:#6b6b9a;
-  --green:#3ecf8e;--red:#ff4b6e;--orange:#ff9a3c;
-}
+:root{--bg:#0d0d14;--card:#16162a;--border:#252545;--accent:#7c5cfc;--text:#e8e8f0;--muted:#6b6b9a;--green:#3ecf8e;--red:#ff4b6e;--orange:#ff9a3c;--blue:#38bdf8}
 body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif}
 .layout{display:flex;min-height:100vh}
-.sidebar{width:240px;background:var(--card);border-right:1px solid var(--border);padding:0;position:fixed;top:0;left:0;bottom:0}
+.sidebar{width:240px;background:var(--card);border-right:1px solid var(--border);position:fixed;top:0;left:0;bottom:0}
 .sidebar-header{padding:24px 20px 20px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,#7c5cfc22,#e8439322)}
 .sidebar-logo{font-size:22px;font-weight:800;color:var(--accent)}
 .sidebar-sub{font-size:11px;color:var(--muted);margin-top:2px}
@@ -23,54 +19,50 @@ body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,san
 .nav a.active{background:linear-gradient(135deg,#7c5cfc33,#7c5cfc11);color:var(--accent)}
 .nav-badge{margin-left:auto;background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;font-weight:700}
 .main{margin-left:240px;padding:32px;flex:1}
+h1{font-size:26px;font-weight:800;margin-bottom:24px}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
-.topbar h1{font-size:26px;font-weight:800}
-/* Filters */
-.filters{display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;align-items:center}
-.filter-select{background:#16162a;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer}
-.filter-select:focus{outline:none;border-color:var(--accent)}
-.search-input{background:#16162a;border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;width:240px}
-.search-input:focus{outline:none;border-color:var(--accent)}
-.count-badge{background:#252545;border-radius:8px;padding:6px 12px;font-size:13px;color:var(--muted)}
-/* Add form */
+.count-pill{background:#252545;border-radius:8px;padding:6px 12px;font-size:13px;color:var(--muted)}
 .add-form{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:24px}
-.add-form h2{font-size:16px;font-weight:700;margin-bottom:16px;color:var(--text)}
-.form-row{display:grid;grid-template-columns:1fr 150px 150px 160px;gap:10px;margin-bottom:12px}
-.form-row2{display:flex;gap:10px;align-items:flex-end}
-.form-group label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:6px}
-.form-control{background:#0d0d14;border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;width:100%}
-.form-control:focus{outline:none;border-color:var(--accent)}
-textarea.form-control{resize:vertical;min-height:72px}
-select.form-control{cursor:pointer}
+.add-form h2{font-size:16px;font-weight:700;margin-bottom:16px}
+.fg{margin-bottom:0}
+.fg label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.fc{width:100%;background:#0d0d14;border:1px solid var(--border);color:var(--text);padding:9px 12px;border-radius:8px;font-size:13px;font-family:inherit}
+.fc:focus{outline:none;border-color:var(--accent)}
+textarea.fc{resize:vertical;min-height:80px}
+select.fc{cursor:pointer}
+.grid4{display:grid;grid-template-columns:1fr 140px 150px 160px;gap:12px;margin-bottom:14px;align-items:start}
 .btn{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
 .btn:hover{opacity:.85}
 .btn-primary{background:var(--accent);color:#fff}
 .btn-danger{background:var(--red);color:#fff}
 .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px}
-/* Table */
+.btn-ghost{background:#252545;color:var(--text)}
+.filters{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center}
+.fsel{background:#16162a;border:1px solid var(--border);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px}
+.search{background:#16162a;border:1px solid var(--border);color:var(--text);padding:8px 14px;border-radius:8px;font-size:13px;width:220px}
+.search:focus,.fsel:focus{outline:none;border-color:var(--accent)}
 .table-wrap{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
 table{width:100%;border-collapse:collapse}
 thead tr{background:#1a1a2e;border-bottom:1px solid var(--border)}
-th{padding:12px 16px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left;font-weight:600}
-td{padding:12px 16px;font-size:13px;border-bottom:1px solid #1a1a2e;vertical-align:top}
+th{padding:12px 16px;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;text-align:left;white-space:nowrap}
+td{padding:11px 16px;font-size:13px;border-bottom:1px solid #1a1a2e;vertical-align:top}
 tr:last-child td{border-bottom:none}
-tr:hover td{background:#1a1a2e}
-.task-text{max-width:400px;line-height:1.5}
+tr:hover td{background:#1a1a28}
+.task-txt{max-width:380px;line-height:1.5;word-break:break-word}
 .badge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:600}
-.badge-truth{background:#7c5cfc22;color:#7c5cfc}
-.badge-dare{background:#ff9a3c22;color:var(--orange)}
-.badge-18{background:#e8439322;color:#e84393}
-.badge-0{background:#3ecf8e22;color:var(--green)}
-.badge-photo{background:#38bdf822;color:#38bdf8}
-.badge-video{background:#f59e0b22;color:#f59e0b}
-.status-on{color:var(--green);font-size:16px;cursor:pointer;background:none;border:none}
-.status-off{color:var(--muted);font-size:16px;cursor:pointer;background:none;border:none}
+.bt{background:#7c5cfc22;color:#7c5cfc}
+.bd{background:#ff9a3c22;color:var(--orange)}
+.b18{background:#e8439322;color:#e84393}
+.b0{background:#3ecf8e22;color:var(--green)}
+.bp{background:#38bdf822;color:var(--blue)}
+.bv{background:#f59e0b22;color:#f59e0b}
 .uses{color:var(--muted);font-size:12px}
+.tog-btn{font-size:17px;cursor:pointer;background:none;border:none;padding:0}
 .empty{text-align:center;padding:48px;color:var(--muted)}
-/* Inline edit */
-.task-edit{display:none;margin-top:8px}
-.task-edit.show{display:block}
+.edit-form{display:none;margin-top:10px;background:#0d0d14;border:1px solid var(--border);border-radius:8px;padding:12px}
+.edit-form.show{display:block}
 .edit-row{display:flex;gap:8px;align-items:flex-start}
+.success-banner{background:#3ecf8e22;border:1px solid #3ecf8e44;color:var(--green);padding:10px 16px;border-radius:10px;margin-bottom:18px;font-size:13px;font-weight:600}
 </style>
 </head>
 <body>
@@ -90,137 +82,139 @@ tr:hover td{background:#1a1a2e}
 
 <main class="main">
   <div class="topbar">
-    <h1>📋 Задания</h1>
-    <span class="count-badge">{{ tasks|length }} из {{ total_count }}</span>
+    <h1 style="margin-bottom:0">📋 Задания</h1>
+    <span class="count-pill">Показано: <b>{{ tasks|length }}</b> из <b>{{ total_count }}</b></span>
   </div>
 
-  <!-- Добавить задание -->
+  {% if added %}
+  <div class="success-banner">✅ Задание добавлено! Оно уже доступно в боте.</div>
+  {% endif %}
+
+  <!-- ── Добавить задание ────────────────────────────────────────────────── -->
   <div class="add-form">
-    <h2>➕ Добавить задание</h2>
+    <h2>➕ Новое задание</h2>
     <form method="post" action="/admin/tasks">
-      <div class="form-row">
-        <div class="form-group">
+      <div class="grid4">
+        <div class="fg">
           <label>Текст задания</label>
-          <textarea name="text" class="form-control" placeholder="Текст правды или действия..." required></textarea>
+          <textarea name="text" class="fc" placeholder="Напиши текст правды или действия..." required></textarea>
         </div>
-        <div class="form-group">
+        <div class="fg">
           <label>Тип</label>
-          <select name="task_type" class="form-control">
+          <select name="task_type" class="fc">
             <option value="truth">🗣 Правда</option>
             <option value="dare">⚡ Действие</option>
           </select>
         </div>
-        <div class="form-group">
+        <div class="fg">
           <label>Категория</label>
-          <select name="is_18_plus" class="form-control">
+          <select name="is_18_plus" class="fc">
             <option value="false">👨‍👩‍👧 Обычный (0+)</option>
             <option value="true">🔞 Только 18+</option>
           </select>
         </div>
-        <div class="form-group">
-          <label>Требуется медиа</label>
-          <select name="media_required" class="form-control">
-            <option value="none">❌ Нет</option>
+        <div class="fg">
+          <label>Медиа-подтверждение</label>
+          <select name="media_required" class="fc">
+            <option value="none">❌ Не требуется</option>
             <option value="photo">📷 Фото</option>
             <option value="video_note">🎥 Видео-кружок</option>
           </select>
         </div>
       </div>
-      <button type="submit" class="btn btn-primary">Добавить задание</button>
+      <button type="submit" class="btn btn-primary">Добавить в бот →</button>
     </form>
   </div>
 
-  <!-- Фильтры -->
-  <div class="filters">
-    <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <select name="task_type" class="filter-select" onchange="this.form.submit()">
-        <option value="all" {% if filter_type=='all' %}selected{% endif %}>Все типы</option>
-        <option value="truth" {% if filter_type=='truth' %}selected{% endif %}>🗣 Правда</option>
-        <option value="dare" {% if filter_type=='dare' %}selected{% endif %}>⚡ Действие</option>
-      </select>
-      <select name="is_18_plus" class="filter-select" onchange="this.form.submit()">
-        <option value="all" {% if filter_18=='all' %}selected{% endif %}>Все категории</option>
-        <option value="false" {% if filter_18=='false' %}selected{% endif %}>0+ Обычные</option>
-        <option value="true" {% if filter_18=='true' %}selected{% endif %}>🔞 18+</option>
-      </select>
-      <select name="active" class="filter-select" onchange="this.form.submit()">
-        <option value="all" {% if filter_active=='all' %}selected{% endif %}>Все статусы</option>
-        <option value="true" {% if filter_active=='true' %}selected{% endif %}>✅ Активные</option>
-        <option value="false" {% if filter_active=='false' %}selected{% endif %}>❌ Отключённые</option>
-      </select>
-      <input type="text" name="search" class="search-input" placeholder="🔍 Поиск по тексту..." value="{{ search }}">
-      <button type="submit" class="btn btn-primary btn-sm">Найти</button>
-      {% if search or filter_type != 'all' or filter_18 != 'all' %}
-      <a href="/admin/tasks" class="btn btn-sm" style="background:#252545;color:var(--muted);text-decoration:none">✕ Сбросить</a>
-      {% endif %}
-    </form>
-  </div>
+  <!-- ── Фильтры ─────────────────────────────────────────────────────────── -->
+  <form method="get" class="filters">
+    <select name="task_type" class="fsel" onchange="this.form.submit()">
+      <option value="all" {% if filter_type=='all' %}selected{% endif %}>Все типы</option>
+      <option value="truth" {% if filter_type=='truth' %}selected{% endif %}>🗣 Правда</option>
+      <option value="dare" {% if filter_type=='dare' %}selected{% endif %}>⚡ Действие</option>
+    </select>
+    <select name="is_18_plus" class="fsel" onchange="this.form.submit()">
+      <option value="all" {% if filter_18=='all' %}selected{% endif %}>Все категории</option>
+      <option value="false" {% if filter_18=='false' %}selected{% endif %}>0+ Обычные</option>
+      <option value="true" {% if filter_18=='true' %}selected{% endif %}>🔞 18+</option>
+    </select>
+    <select name="active" class="fsel" onchange="this.form.submit()">
+      <option value="all" {% if filter_active=='all' %}selected{% endif %}>Все статусы</option>
+      <option value="true" {% if filter_active=='true' %}selected{% endif %}>✅ Активные</option>
+      <option value="false" {% if filter_active=='false' %}selected{% endif %}>⭕ Отключённые</option>
+    </select>
+    <input type="text" name="search" class="search" placeholder="🔍 Поиск по тексту..." value="{{ search }}">
+    <button type="submit" class="btn btn-primary btn-sm">Найти</button>
+    {% if search or filter_type!='all' or filter_18!='all' or filter_active!='all' %}
+    <a href="/admin/tasks" class="btn btn-ghost btn-sm" style="text-decoration:none">✕ Сбросить</a>
+    {% endif %}
+  </form>
 
-  <!-- Таблица -->
+  <!-- ── Таблица ─────────────────────────────────────────────────────────── -->
   <div class="table-wrap">
     {% if tasks %}
     <table>
       <thead>
         <tr>
-          <th style="width:40px">#</th>
+          <th>#</th>
           <th>Текст задания</th>
           <th>Тип</th>
           <th>Категория</th>
           <th>Медиа</th>
-          <th>Использований</th>
-          <th style="width:80px">Статус</th>
-          <th style="width:80px">Действия</th>
+          <th>Исп-й</th>
+          <th>Статус</th>
+          <th>Действия</th>
         </tr>
       </thead>
       <tbody>
-        {% for task in tasks %}
-        <tr id="row-{{ task.id }}">
+        {% for t in tasks %}
+        <tr>
           <td class="uses">{{ loop.index }}</td>
-          <td class="task-text">
-            <div>{{ task.text }}</div>
-            <!-- Inline edit форма -->
-            <div class="task-edit" id="edit-{{ task.id }}">
-              <form method="post" action="/admin/tasks/{{ task.id }}/edit">
+          <td class="task-txt">
+            {{ t.text }}
+            <!-- Inline edit -->
+            <div class="edit-form" id="ef-{{ t.id }}">
+              <form method="post" action="/admin/tasks/{{ t.id }}/edit">
                 <div class="edit-row">
-                  <textarea name="text" class="form-control" style="flex:1;min-height:60px">{{ task.text }}</textarea>
-                  <div style="display:flex;flex-direction:column;gap:6px">
-                    <select name="media_required" class="form-control" style="width:130px">
-                      <option value="none" {% if task.media_required.value=='none' %}selected{% endif %}>❌ Без медиа</option>
-                      <option value="photo" {% if task.media_required.value=='photo' %}selected{% endif %}>📷 Фото</option>
-                      <option value="video_note" {% if task.media_required.value=='video_note' %}selected{% endif %}>🎥 Кружок</option>
+                  <textarea name="text" class="fc" style="flex:1;min-height:56px">{{ t.text }}</textarea>
+                  <div style="display:flex;flex-direction:column;gap:6px;min-width:130px">
+                    <select name="task_type" class="fc">
+                      <option value="truth" {% if t.type.value=='truth' %}selected{% endif %}>🗣 Правда</option>
+                      <option value="dare" {% if t.type.value=='dare' %}selected{% endif %}>⚡ Действие</option>
+                    </select>
+                    <select name="is_18_plus" class="fc">
+                      <option value="false" {% if not t.is_18_plus %}selected{% endif %}>0+</option>
+                      <option value="true" {% if t.is_18_plus %}selected{% endif %}>🔞 18+</option>
+                    </select>
+                    <select name="media_required" class="fc">
+                      <option value="none" {% if t.media_required.value=='none' %}selected{% endif %}>Без медиа</option>
+                      <option value="photo" {% if t.media_required.value=='photo' %}selected{% endif %}>📷 Фото</option>
+                      <option value="video_note" {% if t.media_required.value=='video_note' %}selected{% endif %}>🎥 Кружок</option>
                     </select>
                     <button type="submit" class="btn btn-primary btn-sm">Сохранить</button>
-                    <button type="button" class="btn btn-sm" style="background:#252545;color:var(--muted)" onclick="toggleEdit('{{ task.id }}')">Отмена</button>
+                    <button type="button" class="btn btn-ghost btn-sm" onclick="toggleEdit('{{ t.id }}')">Отмена</button>
                   </div>
                 </div>
               </form>
             </div>
           </td>
-          <td><span class="badge badge-{{ task.type.value }}">{{ '🗣 Правда' if task.type.value=='truth' else '⚡ Действие' }}</span></td>
+          <td><span class="badge {{ 'bt' if t.type.value=='truth' else 'bd' }}">{{ '🗣' if t.type.value=='truth' else '⚡' }}</span></td>
+          <td><span class="badge {{ 'b18' if t.is_18_plus else 'b0' }}">{{ '🔞 18+' if t.is_18_plus else '0+' }}</span></td>
           <td>
-            {% if task.is_18_plus %}
-            <span class="badge badge-18">🔞 18+</span>
-            {% else %}
-            <span class="badge badge-0">0+</span>
-            {% endif %}
+            {% if t.media_required.value=='photo' %}<span class="badge bp">📷</span>
+            {% elif t.media_required.value=='video_note' %}<span class="badge bv">🎥</span>
+            {% else %}<span style="color:var(--muted)">—</span>{% endif %}
           </td>
+          <td class="uses">{{ t.times_used }}×</td>
           <td>
-            {% if task.media_required.value=='photo' %}<span class="badge badge-photo">📷</span>
-            {% elif task.media_required.value=='video_note' %}<span class="badge badge-video">🎥</span>
-            {% else %}<span style="color:var(--muted);font-size:12px">—</span>{% endif %}
-          </td>
-          <td class="uses">{{ task.times_used }}x</td>
-          <td>
-            <form method="post" action="/admin/tasks/{{ task.id }}/toggle" style="display:inline">
-              <button type="submit" class="{{ 'status-on' if task.is_active else 'status-off' }}" title="{{ 'Отключить' if task.is_active else 'Включить' }}">
-                {{ '✅' if task.is_active else '⭕' }}
-              </button>
+            <form method="post" action="/admin/tasks/{{ t.id }}/toggle" style="display:inline">
+              <button type="submit" class="tog-btn" title="{{ 'Отключить' if t.is_active else 'Включить' }}">{{ '✅' if t.is_active else '⭕' }}</button>
             </form>
           </td>
           <td style="white-space:nowrap">
-            <button class="btn btn-sm" style="background:#252545;color:var(--text)" onclick="toggleEdit('{{ task.id }}')">✏️</button>
-            <form method="post" action="/admin/tasks/{{ task.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить задание?')">
-              <button type="submit" class="btn btn-sm btn-danger">🗑</button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleEdit('{{ t.id }}')">✏️</button>
+            <form method="post" action="/admin/tasks/{{ t.id }}/delete" style="display:inline" onsubmit="return confirm('Удалить это задание навсегда?')">
+              <button type="submit" class="btn btn-danger btn-sm">🗑</button>
             </form>
           </td>
         </tr>
@@ -228,15 +222,14 @@ tr:hover td{background:#1a1a2e}
       </tbody>
     </table>
     {% else %}
-    <div class="empty">Заданий не найдено. Измените фильтры или добавьте новые.</div>
+    <div class="empty">Заданий не найдено. Измените фильтры или добавьте первое задание.</div>
     {% endif %}
   </div>
 </main>
 </div>
 <script>
-function toggleEdit(id) {
-  const el = document.getElementById('edit-' + id);
-  el.classList.toggle('show');
+function toggleEdit(id){
+  document.getElementById('ef-'+id).classList.toggle('show');
 }
 </script>
 </body>

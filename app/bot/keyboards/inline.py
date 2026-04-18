@@ -61,6 +61,9 @@ def task_choice_kb(lobby_id: str) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🗣 Правда", callback_data=f"game:pick:truth:{lobby_id}"),
         InlineKeyboardButton(text="⚡ Действие", callback_data=f"game:pick:dare:{lobby_id}"),
     )
+    builder.row(
+        InlineKeyboardButton(text="✏️ Своё задание", callback_data=f"game:custom:{lobby_id}"),
+    )
     builder.row(InlineKeyboardButton(text="🚪 Покинуть игру", callback_data=f"game:leave:{lobby_id}"))
     return builder.as_markup()
 

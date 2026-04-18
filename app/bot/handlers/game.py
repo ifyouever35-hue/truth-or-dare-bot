@@ -165,6 +165,187 @@ async def cb_player_ready(call: CallbackQuery, user: User, db: AsyncSession) -> 
         await send_turn_notification(call.bot, lobby, members)
 
 
+# ─── Своё задание ─────────────────────────────────────────────────────────────
+
+@router.callback_query(F.data.startswith("game:custom:"))
+async def cb_custom_task(
+    call: CallbackQuery,
+    user: User,
+    db: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Игрок хочет задать своё задание."""
+    lobby_id = call.data.split(":")[2]
+
+    # Проверяем что это ход этого игрока
+    lobby = await get_lobby_by_id(db, lobby_id)
+    if not lobby:
+        await call.answer("❌ Комната не найдена.", show_alert=True)
+        return
+
+    members = await get_lobby_members(db, lobby.id)
+    current_idx = lobby.current_player_index % len(members) if members else 0
+    cached_tg = await redis_client.get(f"current_player:{lobby_id}")
+    is_current = (
+        (members and str(members[current_idx].user_id) == str(user.id)) or
+        (cached_tg and int(cached_tg) == user.tg_id)
+    )
+    if not is_current:
+        await call.answer("❌ Сейчас не ваш ход!", show_alert=True)
+        return
+
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🗣 Задать правду", callback_data=f"game:customtype:truth:{lobby_id}"),
+        InlineKeyboardButton(text="⚡ Задать действие", callback_data=f"game:customtype:dare:{lobby_id}"),
+    )
+    builder.row(InlineKeyboardButton(text="« Назад", callback_data=f"game:pick:back:{lobby_id}"))
+
+    await call.message.edit_text(
+        "✏️ <b>Своё задание</b>\n\n"
+        "Выбери тип — потом напиши текст задания.\n"
+        "Остальные игроки его увидят и проголосуют.",
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("game:customtype:"))
+async def cb_custom_task_type(
+    call: CallbackQuery,
+    state: FSMContext,
+) -> None:
+    parts = call.data.split(":")
+    task_type = parts[2]   # truth / dare
+    lobby_id  = parts[3]
+
+    await state.set_state(GamePlay.entering_custom)
+    await state.update_data(lobby_id=lobby_id, custom_type=task_type)
+
+    type_label = "правду (вопрос)" if task_type == "truth" else "действие (задание)"
+    await call.message.edit_text(
+        f"✏️ Напиши <b>{type_label}</b> для других игроков.\n\n"
+        f"Просто отправь текст следующим сообщением.\n"
+        f"<i>Не злоупотребляй — жалобы могут привести к бану.</i>",
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
+@router.message(GamePlay.entering_custom)
+async def msg_custom_task_entered(
+    message: Message,
+    user: User,
+    db: AsyncSession,
+    state: FSMContext,
+) -> None:
+    """Игрок ввёл текст своего задания."""
+    text = message.text.strip() if message.text else ""
+
+    if not text:
+        await message.answer("❌ Отправь текстовое сообщение с заданием.")
+        return
+
+    if len(text) < 5:
+        await message.answer("❌ Слишком коротко. Напиши нормальное задание.")
+        return
+
+    if len(text) > 300:
+        await message.answer("❌ Слишком длинно (макс. 300 символов). Сократи.")
+        return
+
+    fsm = await state.get_data()
+    lobby_id = fsm.get("lobby_id")
+    task_type_str = fsm.get("custom_type", "dare")
+
+    # Удаляем сообщение пользователя с заданием (анонимность)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    lobby = await get_lobby_by_id(db, lobby_id)
+    if not lobby:
+        await state.clear()
+        return
+
+    members = await get_lobby_members(db, lobby.id)
+    task_type = TaskType.TRUTH if task_type_str == "truth" else TaskType.DARE
+
+    # Записываем в лобби как текущую задачу (без ID из БД — кастомная)
+    lobby.current_task_id = None
+    from datetime import datetime, timedelta
+    lobby.task_expires_at = datetime.utcnow() + timedelta(seconds=settings.task_timer_seconds)
+    await db.flush()
+
+    type_label = "🗣 Правда" if task_type == TaskType.TRUTH else "⚡ Действие"
+    media_hint = ""
+
+    # Оповещаем всех игроков
+    from app.utils.broadcast import send_safe
+    import asyncio as _asyncio
+
+    spectator_text = (
+        f"✏️ Игрок придумал <b>своё задание</b>\n\n"
+        f"{type_label}\n\n"
+        f"<b>{text}</b>"
+    )
+
+    # Активному игроку — с кнопками выполнения
+    if task_type == TaskType.TRUTH:
+        from app.bot.keyboards.inline import truth_answer_kb
+        await send_safe(
+            message.bot,
+            chat_id=user.tg_id,
+            text=(
+                f"{type_label} — <b>Ваше задание</b>\n\n"
+                f"<b>{text}</b>\n\n"
+                f"Ответь и нажми кнопку."
+            ),
+            reply_markup=truth_answer_kb(lobby_id),
+            parse_mode="HTML",
+        )
+        await state.set_state(GamePlay.answering_truth)
+        await state.update_data(lobby_id=lobby_id, task_id=None)
+    else:
+        await send_safe(
+            message.bot,
+            chat_id=user.tg_id,
+            text=(
+                f"{type_label} — <b>Ваше задание</b>\n\n"
+                f"<b>{text}</b>\n\n"
+                f"⏱ Времени: {settings.task_timer_seconds} сек."
+            ),
+            reply_markup=task_active_kb(lobby_id, "none"),
+            parse_mode="HTML",
+        )
+        await state.set_state(GamePlay.uploading_dare)
+        await state.update_data(lobby_id=lobby_id, task_id=None, media_required="none")
+
+    # Наблюдателям
+    for i, m in enumerate([mb for mb in members if str(mb.user_id) != str(user.id)]):
+        if i > 0:
+            await _asyncio.sleep(0.035)
+        await send_safe(message.bot, chat_id=m.user.tg_id,
+                        text=spectator_text, parse_mode="HTML")
+
+
+# ─── Назад к выбору (из экрана своего задания) ────────────────────────────────
+
+@router.callback_query(F.data.startswith("game:pick:back:"))
+async def cb_pick_back(call: CallbackQuery, user: User, db: AsyncSession) -> None:
+    lobby_id = call.data.split(":")[3]
+    await call.message.edit_text(
+        f"🎯 <b>Ваш ход!</b>\n\nВыберите тип задания:",
+        reply_markup=task_choice_kb(lobby_id),
+        parse_mode="HTML",
+    )
+    await call.answer()
+
+
 # ─── Выбор типа задания ───────────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("game:pick:"))

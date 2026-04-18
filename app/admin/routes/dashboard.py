@@ -261,6 +261,7 @@ async def admin_tasks(
     )
     pending_reports = pr.scalar() or 0
 
+    added = request.query_params.get("added") == "1"
     return templates.TemplateResponse("tasks.html", {
         "request": request,
         "tasks": tasks,
@@ -270,6 +271,7 @@ async def admin_tasks(
         "filter_active": active,
         "search": search,
         "pending_reports": pending_reports,
+        "added": added,
     })
 
 
@@ -290,7 +292,7 @@ async def admin_add_task(
         media_required=MediaRequired(media_required),
     )
     db.add(task)
-    return RedirectResponse(url="/admin/tasks", status_code=303)
+    return RedirectResponse(url="/admin/tasks?added=1", status_code=303)
 
 
 @router.post("/tasks/{task_id}/toggle")
@@ -311,6 +313,8 @@ async def admin_toggle_task(
 async def admin_edit_task(
     task_id: str,
     text: str = Form(...),
+    task_type: str = Form("dare"),
+    is_18_plus: str = Form("false"),
     media_required: str = Form("none"),
     db: AsyncSession = Depends(get_db),
     _: str = Depends(verify_admin),
@@ -321,6 +325,8 @@ async def admin_edit_task(
         raise HTTPException(status_code=404)
     from app.database.models import MediaRequired
     task.text = text.strip()
+    task.type = TaskType(task_type)
+    task.is_18_plus = (is_18_plus == "true")
     task.media_required = MediaRequired(media_required)
     return RedirectResponse(url="/admin/tasks", status_code=303)
 
