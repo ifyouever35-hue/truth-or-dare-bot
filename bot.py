@@ -209,7 +209,7 @@ async def run():
     from app.database.models import Base
     engine = create_async_engine(settings.database_url)
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(lambda c: Base.metadata.create_all(c, checkfirst=True))
     await engine.dispose()
     ok("Таблицы готовы")
 
