@@ -609,10 +609,10 @@ async def cb_quickmatch_cancel(call: CallbackQuery, user: User, state: FSMContex
     await redis_client.matchmaking_leave(user.tg_id, mode)
 
     from app.bot.keyboards.inline import main_menu_kb
-    from app.bot.handlers.start import _verified_status
+    from app.bot.handlers.start import _verified_badge
     await call.message.edit_text(
         f"🏠 <b>Главное меню</b>\n\n"
-        f"{_verified_status(user)}\n"
+        f"{_verified_badge(user)}\n"
         f"⭐ Stars: <b>{user.stars_balance}</b>",
         reply_markup=main_menu_kb(),
         parse_mode="HTML",
