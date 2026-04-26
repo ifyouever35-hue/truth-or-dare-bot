@@ -1,35 +1,50 @@
+# =============================================================================
+# docker-compose.yml — production-стек Truth or Dare Bot.
+#
+# Состав:
+#   db      — PostgreSQL 16
+#   redis   — Redis 7
+#   app     — Python-приложение (FastAPI + aiogram, см. main.py)
+#
+# Запуск на сервере:
+#   1. Скопируй .env.example → .env и заполни значения (BOT_TOKEN и пр.)
+#   2. docker compose up -d --build
+#
+# Никакого "Docker внутри Docker" — внутри контейнера app живёт только Python.
+# =============================================================================
+
 services:
 
   db:
     image: postgres:16-alpine
     container_name: tod_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-truth_or_dare}
       POSTGRES_USER: ${POSTGRES_USER:-tod_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-strongpassword123}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-tod_user} -d ${POSTGRES_DB:-truth_or_dare}"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
     networks:
       - tod_net
 
   redis:
     image: redis:7-alpine
     container_name: tod_redis
-    restart: always
-    command: redis-server --save 60 1 --loglevel warning
+    restart: unless-stopped
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
     volumes:
       - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 20
     networks:
       - tod_net
 
@@ -37,21 +52,31 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: tod_app:latest
     container_name: tod_app
-    restart: always
+    restart: unless-stopped
     env_file:
       - .env
-    volumes:
-      - media_storage:/app/media_storage
-      - ./logs:/app/logs
-      - ./backups:/app/backups
+    environment:
+      # Жёстко прописываем имена сервисов — внутри docker-сети они и так такие,
+      # но если пользователь поставил в .env localhost для локалки, это перебьёт.
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - media_storage:/app/media_storage
+      - ./logs:/app/logs
+      - ./backups:/app/backups
     ports:
-      - "8000:8000"
+      # Слушаем только на localhost — наружу проксирует nginx с хоста.
+      # Если nginx на этой же машине нет, замени на "8000:8000".
+      - "127.0.0.1:8000:8000"
     networks:
       - tod_net
 

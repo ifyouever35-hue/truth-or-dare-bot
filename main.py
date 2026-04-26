@@ -80,7 +80,8 @@ async def lifespan(app: FastAPI):
     dp.include_router(payment.router)
     logger.info("Routers registered")
 
-    # 6. Webhook
+    # 6. Webhook ИЛИ polling-fallback
+    polling_task = None
     if settings.webhook_host:
         webhook_url = f"{settings.webhook_host}{settings.webhook_path}"
         await bot.set_webhook(
@@ -90,7 +91,24 @@ async def lifespan(app: FastAPI):
         )
         logger.info("Webhook set: %s", webhook_url)
     else:
-        logger.warning("WEBHOOK_HOST not set — webhook not registered. Use polling for local dev.")
+        # Без домена — запускаем polling в фоне, в том же event loop, что и FastAPI.
+        # Это нужно для деплоя на VM, у которой пока нет публичного HTTPS.
+        logger.warning("WEBHOOK_HOST not set — starting polling fallback in background.")
+        await bot.delete_webhook(drop_pending_updates=True)
+        import asyncio as _asyncio
+
+        async def _polling_runner():
+            try:
+                await dp.start_polling(
+                    bot,
+                    allowed_updates=dp.resolve_used_update_types(),
+                )
+            except _asyncio.CancelledError:
+                pass
+            except Exception:
+                logger.exception("Polling loop crashed")
+
+        polling_task = _asyncio.create_task(_polling_runner(), name="aiogram-polling")
 
     # 7. Scheduler
     sched = setup_scheduler()
@@ -100,12 +118,20 @@ async def lifespan(app: FastAPI):
     app.state.bot = bot
     app.state.dp = dp
     app.state.scheduler = sched
+    app.state.polling_task = polling_task
 
     yield  # ── приложение работает ──────────────────────────────────────────
 
     # ── Shutdown ─────────────────────────────────────────────────────────────
     logger.info("Shutting down...")
     sched.shutdown(wait=False)
+    if polling_task is not None:
+        await dp.stop_polling()
+        polling_task.cancel()
+        try:
+            await polling_task
+        except BaseException:
+            pass
     if settings.webhook_host:
         await bot.delete_webhook()
     await bot.session.close()
