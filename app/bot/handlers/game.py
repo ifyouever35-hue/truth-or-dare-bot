@@ -1074,7 +1074,7 @@ async def cb_leave_game(
     from app.bot.keyboards.inline import main_menu_kb
     await call.message.edit_text(
         "🚪 Вы покинули игру.\n\nВаши очки сохранены, но из результатов вы исключены.",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(user),
     )
     await call.answer("Вы покинули игру")
 

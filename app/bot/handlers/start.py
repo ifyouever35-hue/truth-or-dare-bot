@@ -122,7 +122,7 @@ async def cmd_start(
         await redis_client.set_last_message(user.tg_id, sent.message_id)
         return
 
-    await _replace_card(message, user, _menu_text(user), main_menu_kb())
+    await _replace_card(message, user, _menu_text(user), main_menu_kb(user))
 
 
 # ─── Меню ─────────────────────────────────────────────────────────────────────
@@ -130,14 +130,14 @@ async def cmd_start(
 @router.callback_query(F.data == "menu:main")
 async def cb_main_menu(call: CallbackQuery, user: User, state: FSMContext) -> None:
     await state.clear()
-    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(), parse_mode="HTML")
+    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(user), parse_mode="HTML")
     await call.answer()
 
 
 @router.callback_query(F.data == "menu:back")
 async def cb_back(call: CallbackQuery, user: User, state: FSMContext) -> None:
     await state.clear()
-    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(), parse_mode="HTML")
+    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(user), parse_mode="HTML")
     await call.answer()
 
 
@@ -209,7 +209,7 @@ async def cb_rejoin(call: CallbackQuery, user: User, db: AsyncSession) -> None:
     lobby = result.scalars().first()
 
     if not lobby:
-        await call.message.edit_text("У вас нет активной комнаты.", reply_markup=main_menu_kb())
+        await call.message.edit_text("У вас нет активной комнаты.", reply_markup=main_menu_kb(user))
         await call.answer()
         return
 
@@ -226,10 +226,12 @@ async def cb_rejoin(call: CallbackQuery, user: User, db: AsyncSession) -> None:
 # ─── О боте ──────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "menu:about")
-async def cb_about(call: CallbackQuery) -> None:
+async def cb_about(call: CallbackQuery, user: User) -> None:
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
+    from app.bot.keyboards.inline import _anon_chat_url
     builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🎭 Анонимный чат — общение по интересам", url=_anon_chat_url(user.tg_id)))
     builder.row(InlineKeyboardButton(text="💬 Написать разработчику", url="https://t.me/"))
     builder.row(InlineKeyboardButton(text="« Назад", callback_data="menu:main"))
 
@@ -241,6 +243,7 @@ async def cb_about(call: CallbackQuery) -> None:
         f"🔍 Быстрый поиск партнёров\n"
         f"📸 Медиа-подтверждения заданий\n"
         f"⭐ Система Stars и откупов\n\n"
+        f"\n🎭 <b>А ещё у нас есть анонимный чат по интересам</b> — кнопка ниже.\n\n"
         f"<b>Правила:</b>\n"
         f"• Уважай других игроков\n"
         f"• Не отправляй неприемлемый контент\n"

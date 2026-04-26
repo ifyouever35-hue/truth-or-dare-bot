@@ -223,7 +223,7 @@ async def cb_rejoin_existing(
     lobby = await get_lobby_by_id(db, lobby_id)
     if not lobby:
         from app.bot.keyboards.inline import main_menu_kb
-        await call.message.edit_text("❌ Комната уже закрыта.", reply_markup=main_menu_kb())
+        await call.message.edit_text("❌ Комната уже закрыта.", reply_markup=main_menu_kb(user))
         await call.answer()
         return
 
@@ -499,7 +499,7 @@ async def cb_leave_lobby(
         from app.bot.keyboards.inline import main_menu_kb
         await call.message.edit_text(
             "👋 Вы покинули комнату.",
-            reply_markup=main_menu_kb(),
+            reply_markup=main_menu_kb(user),
         )
     await call.answer()
 
@@ -523,7 +523,7 @@ async def cb_close_lobby(
     from app.bot.keyboards.inline import main_menu_kb
     await call.message.edit_text(
         "✅ Комната закрыта.",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(user),
     )
     await call.answer()
 
@@ -614,7 +614,7 @@ async def cb_quickmatch_cancel(call: CallbackQuery, user: User, state: FSMContex
         f"🏠 <b>Главное меню</b>\n\n"
         f"{_verified_badge(user)}\n"
         f"⭐ Stars: <b>{user.stars_balance}</b>",
-        reply_markup=main_menu_kb(),
+        reply_markup=main_menu_kb(user),
         parse_mode="HTML",
     )
     await call.answer("Поиск отменён.")
