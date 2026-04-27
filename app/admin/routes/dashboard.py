@@ -33,7 +33,7 @@ from app.database.models import (
     User,
 )
 from app.database.session import get_db
-from app.services.user_service import ban_user_db
+from app.services.user_service import ban_user_db, unban_user_db
 from app.utils.redis_client import redis_client
 
 from pathlib import Path as _Path
@@ -188,7 +188,7 @@ async def admin_reports(
 @router.post("/ban")
 async def admin_ban_user(
     tg_id: int = Form(...),
-    reason: str = Form(...),
+    reason: str = Form("без причины"),
     ban_type: str = Form("permanent"),
     media_archive_id: str = Form(None),
     db: AsyncSession = Depends(get_db),
@@ -216,6 +216,24 @@ async def admin_ban_user(
     db.add(ban)
 
     return RedirectResponse(url="/admin/reports", status_code=303)
+
+
+@router.post("/unban")
+async def admin_unban_user(
+    tg_id: int = Form(...),
+    db: AsyncSession = Depends(get_db),
+    _: str = Depends(verify_admin),
+):
+    user_result = await db.execute(select(User).where(User.tg_id == tg_id))
+    user = user_result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await unban_user_db(db, user)
+    await redis_client.unban_user(tg_id)
+
+    return RedirectResponse(url="/admin/users", status_code=303)
 
 
 # ─── Tasks management ─────────────────────────────────────────────────────────
