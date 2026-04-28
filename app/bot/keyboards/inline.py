@@ -5,8 +5,22 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 
-def main_menu_kb() -> InlineKeyboardMarkup:
+ANON_BOT_USERNAME = "neverland_anon_chatbot"
+
+
+def _anon_chat_url(tg_id: int | None = None) -> str:
+    base = f"https://t.me/{ANON_BOT_USERNAME}"
+    if tg_id is not None:
+        return f"{base}?start=fromtod_{tg_id}"
+    return base
+
+
+def main_menu_kb(user=None) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    tg_id = getattr(user, "tg_id", None)
+    builder.row(
+        InlineKeyboardButton(text="🎭 Анонимный чат — общение по интересам", url=_anon_chat_url(tg_id)),
+    )
     builder.row(
         InlineKeyboardButton(text="🎲 Создать комнату", callback_data="menu:create_lobby"),
         InlineKeyboardButton(text="🔑 Войти по коду", callback_data="menu:join_lobby"),

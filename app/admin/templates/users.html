@@ -97,7 +97,13 @@
                    border-radius:6px;cursor:pointer;font-size:12px;">Бан</button>
         </form>
         {% else %}
+        <form method="post" action="/admin/unban" style="display:flex;gap:6px;align-items:center;">
+          <input type="hidden" name="tg_id" value="{{ user.tg_id }}">
           <span style="color:var(--red);font-size:12px;">Забанен</span>
+          <button type="submit"
+            style="background:var(--green);color:#fff;border:none;padding:4px 10px;
+                   border-radius:6px;cursor:pointer;font-size:12px;">Разбанить</button>
+        </form>
         {% endif %}
       </td>
     </tr>

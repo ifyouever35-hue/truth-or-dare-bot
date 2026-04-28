@@ -66,30 +66,10 @@ ONBOARDING_TEXT = """\
 🔍 Быстрый поиск — находим тебе партнёров автоматически
 📸 Некоторые задания требуют фото/видео подтверждения
 
-<b>Получай каждый день:</b>
-🎁 +3 ⭐ Stars просто за вход в бота
-
 Нажми <b>Начать игру</b> и погнали! 🚀\
 """
 
 
-async def _check_daily_bonus(user: User) -> str:
-    """Ежедневный бонус +3 Stars. Возвращает текст если выдан."""
-    from datetime import date
-    key = f"daily_bonus:{user.tg_id}:{date.today().isoformat()}"
-    if await redis_client.get(key):
-        return ""
-    from app.database.session import get_db_context
-    from app.services.user_service import add_stars
-    async with get_db_context() as db:
-        from sqlalchemy import select
-        from app.database.models import User as UserModel
-        result = await db.execute(select(UserModel).where(UserModel.tg_id == user.tg_id))
-        u = result.scalar_one_or_none()
-        if u:
-            await add_stars(db, u, 3)
-    await redis_client.set(key, "1", ttl=86400)
-    return "🎁 <b>+3 ⭐ ежедневный бонус!</b>"
 
 
 def _menu_text(user: User, extra: str = "") -> str:
@@ -142,8 +122,7 @@ async def cmd_start(
         await redis_client.set_last_message(user.tg_id, sent.message_id)
         return
 
-    bonus = await _check_daily_bonus(user)
-    await _replace_card(message, user, _menu_text(user, bonus), main_menu_kb())
+    await _replace_card(message, user, _menu_text(user), main_menu_kb(user))
 
 
 # ─── Меню ─────────────────────────────────────────────────────────────────────
@@ -151,14 +130,14 @@ async def cmd_start(
 @router.callback_query(F.data == "menu:main")
 async def cb_main_menu(call: CallbackQuery, user: User, state: FSMContext) -> None:
     await state.clear()
-    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(), parse_mode="HTML")
+    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(user), parse_mode="HTML")
     await call.answer()
 
 
 @router.callback_query(F.data == "menu:back")
 async def cb_back(call: CallbackQuery, user: User, state: FSMContext) -> None:
     await state.clear()
-    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(), parse_mode="HTML")
+    await call.message.edit_text(_menu_text(user), reply_markup=main_menu_kb(user), parse_mode="HTML")
     await call.answer()
 
 
@@ -230,7 +209,7 @@ async def cb_rejoin(call: CallbackQuery, user: User, db: AsyncSession) -> None:
     lobby = result.scalars().first()
 
     if not lobby:
-        await call.message.edit_text("У вас нет активной комнаты.", reply_markup=main_menu_kb())
+        await call.message.edit_text("У вас нет активной комнаты.", reply_markup=main_menu_kb(user))
         await call.answer()
         return
 
@@ -247,10 +226,12 @@ async def cb_rejoin(call: CallbackQuery, user: User, db: AsyncSession) -> None:
 # ─── О боте ──────────────────────────────────────────────────────────────────
 
 @router.callback_query(F.data == "menu:about")
-async def cb_about(call: CallbackQuery) -> None:
+async def cb_about(call: CallbackQuery, user: User) -> None:
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
+    from app.bot.keyboards.inline import _anon_chat_url
     builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="🎭 Анонимный чат — общение по интересам", url=_anon_chat_url(user.tg_id)))
     builder.row(InlineKeyboardButton(text="💬 Написать разработчику", url="https://t.me/"))
     builder.row(InlineKeyboardButton(text="« Назад", callback_data="menu:main"))
 
@@ -262,6 +243,7 @@ async def cb_about(call: CallbackQuery) -> None:
         f"🔍 Быстрый поиск партнёров\n"
         f"📸 Медиа-подтверждения заданий\n"
         f"⭐ Система Stars и откупов\n\n"
+        f"\n🎭 <b>А ещё у нас есть анонимный чат по интересам</b> — кнопка ниже.\n\n"
         f"<b>Правила:</b>\n"
         f"• Уважай других игроков\n"
         f"• Не отправляй неприемлемый контент\n"
@@ -381,7 +363,7 @@ async def cmd_help(message: Message) -> None:
         "5. Выполняй задания, зарабатывай очки\n"
         "6. Потерял все жизни — выбываешь!\n\n"
         f"⏱ Время: {settings.task_timer_seconds} сек · ❤️ Жизней: {settings.default_lives}\n"
-        f"💰 Откуп: {settings.buyout_cost_stars} ⭐ · 🎁 Бонус: +3 ⭐/день\n\n"
+        f"💰 Откуп: {settings.buyout_cost_stars} ⭐\n\n"
         "Команды:\n"
         "/start — главное меню\n"
         "/profile — твой профиль\n"

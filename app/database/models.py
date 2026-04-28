@@ -158,7 +158,7 @@ class Lobby(Base):
     join_hash: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
 
     status: Mapped[LobbyStatus] = mapped_column(
-        Enum(LobbyStatus), default=LobbyStatus.WAITING
+        Enum(LobbyStatus, values_callable=lambda x: [e.value for e in x]), default=LobbyStatus.WAITING
     )
 
     # ID сообщения в чате, которое показывает статус лобби
@@ -227,11 +227,11 @@ class TasksPool(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(), primary_key=True, default=uuid.uuid4
     )
-    type: Mapped[TaskType] = mapped_column(Enum(TaskType), nullable=False)
+    type: Mapped[TaskType] = mapped_column(Enum(TaskType, values_callable=lambda x: [e.value for e in x]), nullable=False)
     is_18_plus: Mapped[bool] = mapped_column(Boolean, default=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     media_required: Mapped[MediaRequired] = mapped_column(
-        Enum(MediaRequired), default=MediaRequired.NONE
+        Enum(MediaRequired, values_callable=lambda x: [e.value for e in x]), default=MediaRequired.NONE
     )
 
     # Статистика использования
@@ -343,7 +343,7 @@ class Ban(Base):
         UUID(), ForeignKey("users.id"), nullable=False
     )
     admin_note: Mapped[Optional[str]] = mapped_column(Text)
-    ban_type: Mapped[BanType] = mapped_column(Enum(BanType))
+    ban_type: Mapped[BanType] = mapped_column(Enum(BanType, values_callable=lambda x: [e.value for e in x]))
     expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     media_archive_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID())
 

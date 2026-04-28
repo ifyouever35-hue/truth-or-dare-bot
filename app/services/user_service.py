@@ -82,3 +82,13 @@ async def ban_user_db(
     user.ban_reason = reason
     await session.flush()
     return user
+
+
+async def unban_user_db(
+    session: AsyncSession,
+    user: User,
+) -> User:
+    user.is_banned = False
+    user.ban_reason = None
+    await session.flush()
+    return user
