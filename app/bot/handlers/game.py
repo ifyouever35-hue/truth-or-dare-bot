@@ -340,9 +340,9 @@ async def msg_custom_task_entered(
             text=(
                 f"{type_label} — <b>Ваше задание</b>\n\n"
                 f"<b>{text}</b>\n\n"
-                f"Ответь и нажми кнопку."
+                f"Ответь текстом, голосовым или кружком.\n"
+                f"Кнопка появится после отправки ответа."
             ),
-            reply_markup=truth_answer_kb(lobby_id),
             parse_mode="HTML",
         )
         await state.set_state(GamePlay.answering_truth)
@@ -455,7 +455,6 @@ async def cb_pick_task_type(
             f"<b>{task.text}</b>\n\n"
             f"Ответь текстом, голосовым сообщением или кружком.\n"
             f"Все участники увидят твой ответ.",
-            reply_markup=truth_answer_kb(lobby_id),
             parse_mode="HTML",
         )
         await state.set_state(GamePlay.answering_truth)
