@@ -164,8 +164,30 @@ def profile_kb(has_active_lobby: bool = False) -> InlineKeyboardMarkup:
 def game_over_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="🔄 Играть снова", callback_data="menu:create_lobby"),
-        InlineKeyboardButton(text="🏠 Главное меню", callback_data="menu:main"),
+        InlineKeyboardButton(text="📋 В главное меню", callback_data="menu:main"),
+    )
+    return builder.as_markup()
+
+
+def task_show_kb(lobby_id: str) -> InlineKeyboardMarkup:
+    """Клавиатура для показа Действия без медиа — БЕЗ кнопки Выполнил.
+
+    Выполнил появится отдельным сообщением снизу.
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="❌ Сдаться (-1 жизнь)", callback_data=f"game:surrender:{lobby_id}"),
+        InlineKeyboardButton(text="💰 Откупиться", callback_data=f"game:buyout:{lobby_id}"),
+    )
+    builder.row(InlineKeyboardButton(text="🚪 Покинуть игру", callback_data=f"game:leave:{lobby_id}"))
+    return builder.as_markup()
+
+
+def task_confirm_kb(lobby_id: str) -> InlineKeyboardMarkup:
+    """Кнопка подтверждения выполнения — отправляется отдельно."""
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="✅ Я выполнил(а)!", callback_data=f"game:done:{lobby_id}"),
     )
     return builder.as_markup()
 

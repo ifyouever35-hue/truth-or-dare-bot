@@ -27,6 +27,8 @@ from app.bot.keyboards.inline import (
     redo_or_buyout_kb,
     report_media_kb,
     task_active_kb,
+    task_show_kb,
+    task_confirm_kb,
     task_choice_kb,
     truth_answer_kb,
     vote_kb,
@@ -48,6 +50,39 @@ router = Router()
 
 
 # ─── Уведомление о ходе ──────────────────────────────────────────────────────
+
+async def delete_and_send(
+    bot,
+    tg_id: int,
+    lobby_id: str,
+    text: str,
+    reply_markup=None,
+    parse_mode: str = "HTML",
+) -> None:
+    """Удаляет старую карточку игрока и отправляет новую.
+
+    Хранит message_id в Redis: card:{lobby_id}:{tg_id}.
+    Если удалить не удалось (уже удалено, слишком старое) — просто отправляет.
+    """
+    key = f"card:{lobby_id}:{tg_id}"
+    old_id_str = await redis_client.get(key)
+    if old_id_str:
+        try:
+            await bot.delete_message(chat_id=tg_id, message_id=int(old_id_str))
+        except Exception:
+            pass  # не страшно — удалено раньше или слишком старое
+
+    try:
+        msg = await bot.send_message(
+            chat_id=tg_id,
+            text=text,
+            reply_markup=reply_markup,
+            parse_mode=parse_mode,
+        )
+        await redis_client.set(key, str(msg.message_id), ttl=7200)
+    except Exception:
+        pass
+
 
 async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMember]) -> None:
     """Отправляем уведомление о начале нового хода всем игрокам."""
@@ -72,16 +107,17 @@ async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMemb
         score_lines.append(f"{arrow} {m.user.first_name}  ❤️{m.lives}  ⭐{m.score}")
     scoreboard = "\n".join(score_lines)
 
-    # Активному игроку
-    await send_safe(bot,
-        chat_id=current_member.user.tg_id,
+    # Активному игроку — удаляем старую карточку, отправляем новую
+    await delete_and_send(
+        bot,
+        current_member.user.tg_id,
+        str(lobby.id),
         text=(
             f"🎯 <b>Ваш ход!</b>  (Раунд {lobby.current_round})\n\n"
             f"<b>Счёт:</b>\n{scoreboard}\n\n"
             f"Выберите тип задания:"
         ),
         reply_markup=task_choice_kb(str(lobby.id)),
-        parse_mode="HTML",
     )
 
     # Наблюдателям — с задержкой (Telegram flood limit: 30 msg/sec)
@@ -89,14 +125,15 @@ async def send_turn_notification(bot: Bot, lobby: Lobby, members: list[LobbyMemb
     for i, member in enumerate(spectators):
         if i > 0:
             await asyncio.sleep(0.035)
-        await send_safe(bot,
-            chat_id=member.user.tg_id,
+        await delete_and_send(
+            bot,
+            member.user.tg_id,
+            str(lobby.id),
             text=(
                 f"⏳ Ход следующего игрока  (Раунд {lobby.current_round})\n\n"
                 f"<b>Счёт:</b>\n{scoreboard}\n\n"
-                f"Ожидайте выбора..."
+                f"Ожидайте выбора задания..."
             ),
-            parse_mode="HTML",
         )
 
 
@@ -325,12 +362,14 @@ async def msg_custom_task_entered(
         await state.set_state(GamePlay.uploading_dare)
         await state.update_data(lobby_id=lobby_id, task_id=None, media_required="none")
 
-    # Наблюдателям
+    # Наблюдателям — удаляем старую карточку, шлём новую
     for i, m in enumerate([mb for mb in members if str(mb.user_id) != str(user.id)]):
         if i > 0:
             await _asyncio.sleep(0.035)
-        await send_safe(message.bot, chat_id=m.user.tg_id,
-                        text=spectator_text, parse_mode="HTML")
+        await delete_and_send(
+            message.bot, m.user.tg_id, str(lobby.id),
+            text=spectator_text,
+        )
 
 
 # ─── Назад к выбору (из экрана своего задания) ────────────────────────────────
@@ -404,14 +443,10 @@ async def cb_pick_task_type(
     for m in members:
         if str(m.user_id) == str(user.id):
             continue
-        try:
-            await call.bot.send_message(
-                chat_id=m.user.tg_id,
-                text=spectator_text,
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
+        await delete_and_send(
+            call.bot, m.user.tg_id, str(lobby.id),
+            text=spectator_text,
+        )
 
     if task_type == TaskType.TRUTH:
         # Правда — ждём текстовый/голосовой ответ
@@ -427,15 +462,36 @@ async def cb_pick_task_type(
         await state.update_data(lobby_id=lobby_id, task_id=str(task.id))
     else:
         # Действие — выполняй
-        await call.message.edit_text(
-            f"⚡ <b>Действие</b>\n\n"
-            f"<b>{task.text}</b>"
-            f"{media_hint}\n\n"
-            f"⏱ Времени: {settings.task_timer_seconds} сек.\n\n"
-            f"После выполнения участники проголосуют — засчитать или нет.",
-            reply_markup=task_active_kb(lobby_id, task.media_required.value),
-            parse_mode="HTML",
-        )
+        if task.media_required.value != "none":
+            # Требуется фото/видео — показываем с кнопкой «Отправить подтверждение»
+            await call.message.edit_text(
+                f"⚡ <b>Действие</b>\n\n"
+                f"<b>{task.text}</b>"
+                f"{media_hint}\n\n"
+                f"⏱ Времени: {settings.task_timer_seconds} сек.\n\n"
+                f"После выполнения участники проголосуют — засчитать или нет.",
+                reply_markup=task_active_kb(lobby_id, task.media_required.value),
+                parse_mode="HTML",
+            )
+        else:
+            # Действие без медиа — сначала задание БЕЗ кнопки Выполнил
+            await call.message.edit_text(
+                f"⚡ <b>Действие</b>\n\n"
+                f"<b>{task.text}</b>\n\n"
+                f"⏱ Времени: {settings.task_timer_seconds} сек.\n\n"
+                f"Выполни задание, затем нажми кнопку ниже.",
+                reply_markup=task_show_kb(lobby_id),
+                parse_mode="HTML",
+            )
+            # Отдельное сообщение снизу с кнопкой подтверждения
+            try:
+                await call.bot.send_message(
+                    chat_id=call.from_user.id,
+                    text="👇 Когда выполнишь — нажми:",
+                    reply_markup=task_confirm_kb(lobby_id),
+                )
+            except Exception:
+                pass
         await state.set_state(GamePlay.uploading_dare)
         await state.update_data(
             lobby_id=lobby_id,
@@ -463,23 +519,22 @@ async def msg_truth_answer(message: Message, user: User, db: AsyncSession, state
     lobby = await get_lobby_by_id(db, lobby_id)
     members = await get_lobby_members(db, lobby.id)
 
-    # Пересылаем ответ всем остальным
-    player_name = user.first_name
+    # Пересылаем ответ всем остальным (анонимно, без "Переслано от")
     for m in members:
         if str(m.user_id) == str(user.id):
             continue
         try:
-            await message.bot.send_message(
-                chat_id=m.user.tg_id,
-                text="💬 <b>Игрок</b> отвечает на вопрос:",
-                parse_mode="HTML",
+            # Сначала удаляем старую карточку и шлём заголовок
+            await delete_and_send(
+                message.bot, m.user.tg_id, str(lobby.id),
+                text="💬 <b>Игрок ответил на вопрос</b>\n\nСмотри ниже 👇",
             )
-            # copy_to копирует без "Переслано от" — анонимно!
+            # Потом пересылаем сам ответ отдельным сообщением (медиа нельзя в edit)
             await message.copy_to(chat_id=m.user.tg_id)
         except Exception:
             pass
 
-    # Показываем кнопку "Я ответил"
+    # Показываем кнопку "Я ответил" активному игроку
     await message.answer(
         "✅ Ответ отправлен всем игрокам!\n\nНажми кнопку когда закончишь.",
         reply_markup=truth_answer_kb(lobby_id),
@@ -526,19 +581,15 @@ async def cb_truth_done(call: CallbackQuery, user: User, db: AsyncSession, state
     await call.answer()
 
     for m in voters:
-        try:
-            await call.bot.send_message(
-                chat_id=m.user.tg_id,
-                text=(
-                    "🗳 <b>Голосование!</b>\n\n"
-                    "Игрок ответил(а) на вопрос.\n"
-                    "Засчитать ответ?"
-                ),
-                reply_markup=vote_kb(lobby_id),
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
+        await delete_and_send(
+            call.bot, m.user.tg_id, lobby_id,
+            text=(
+                "🗳 <b>Голосование!</b>\n\n"
+                "Игрок ответил(а) на вопрос.\n"
+                "Засчитать ответ?"
+            ),
+            reply_markup=vote_kb(lobby_id),
+        )
 
 
 # ─── ДЕЙСТВИЕ: подтверждение выполнения ──────────────────────────────────────
@@ -582,19 +633,15 @@ async def cb_task_done(call: CallbackQuery, user: User, db: AsyncSession, state:
     await call.answer()
 
     for m in voters:
-        try:
-            await call.bot.send_message(
-                chat_id=m.user.tg_id,
-                text=(
-                    f"🗳 <b>Голосование!</b>\n\n"
-                    "Игрок говорит что выполнил(а) задание.\n\n"
-                    f"Вы согласны?"
-                ),
-                reply_markup=vote_kb(lobby_id),
-                parse_mode="HTML",
-            )
-        except Exception:
-            pass
+        await delete_and_send(
+            call.bot, m.user.tg_id, lobby_id,
+            text=(
+                "🗳 <b>Голосование!</b>\n\n"
+                "Игрок говорит что выполнил(а) задание.\n"
+                "Вы согласны?"
+            ),
+            reply_markup=vote_kb(lobby_id),
+        )
 
 
 # ─── Загрузка медиа для действия ─────────────────────────────────────────────
@@ -973,19 +1020,16 @@ async def cb_report_media(call: CallbackQuery, db: AsyncSession) -> None:
 async def _announce_game_over(
     bot: Bot, lobby: Lobby, members: list[LobbyMember], winner: LobbyMember = None,
 ) -> None:
+    winner_id = winner.user_id if winner else None
     winner_name = winner.user.first_name if winner and winner.user else None
+
     sorted_members = sorted(members, key=lambda m: m.score, reverse=True)
     medals = ["🥇", "🥈", "🥉"]
     score_lines = [
         f"{medals[i] if i < 3 else f'{i+1}.'} {m.user.first_name} — {m.score} очков"
         for i, m in enumerate(sorted_members)
     ]
-    winner_text = f"🏆 Победитель: <b>{winner_name}</b>!\n\n" if winner_name else ""
-    text = (
-        f"🎮 <b>Игра завершена!</b>\n\n"
-        f"{winner_text}"
-        f"📊 <b>Итоговый счёт:</b>\n" + "\n".join(score_lines)
-    )
+    score_block = "📊 <b>Итоговый счёт:</b>\n" + "\n".join(score_lines)
 
     from app.services.lobby_service import close_lobby
     from app.database.session import get_db_context
@@ -995,7 +1039,6 @@ async def _announce_game_over(
     async with get_db_context() as db:
         lobby_obj = await get_lobby_by_id(db, str(lobby.id))
         if lobby_obj:
-            # Один запрос на всех участников (избегаем N+1)
             member_ids = [m.user_id for m in members]
             res_users = await db.execute(
                 select(UserModel).where(UserModel.id.in_(member_ids))
@@ -1007,16 +1050,47 @@ async def _announce_game_over(
                 users_map[winner.user_id].games_won += 1
             await close_lobby(db, lobby_obj)
 
+    # Персональная карточка для каждого участника
     for member in members:
+        is_winner = (winner_id is not None and member.user_id == winner_id)
+
+        if is_winner:
+            header = "🏆 <b>ПОБЕДА!</b>"
+            sub = "Поздравляем — ты выиграл эту игру!"
+        elif winner_name:
+            header = "💔 <b>Игра окончена</b>"
+            sub = f"Победил <b>{winner_name}</b>. В следующий раз повезёт!"
+        else:
+            header = "🎮 <b>Игра завершена</b>"
+            sub = "Ничья — сыграли одинаково хорошо."
+
+        text = (
+            f"{header}\n\n"
+            f"{sub}\n\n"
+            f"━━━━━━━━━━\n"
+            f"{score_block}"
+        )
+
+        # Удаляем последнюю игровую карточку и отправляем финальную
         try:
-            await bot.send_message(
-                chat_id=member.user.tg_id,
+            await delete_and_send(
+                bot,
+                member.user.tg_id,
+                str(lobby.id),
                 text=text,
                 reply_markup=game_over_kb(),
-                parse_mode="HTML",
             )
         except Exception:
-            pass
+            # delete_and_send может не быть (если патч не применялся)
+            try:
+                await bot.send_message(
+                    chat_id=member.user.tg_id,
+                    text=text,
+                    reply_markup=game_over_kb(),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
